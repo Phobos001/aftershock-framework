@@ -1,0 +1,51 @@
+[package]
+name = "aftershock-framework"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+# Software Rendering And Windowing
+lodepng = "3.7.0"
+rgb = "0.8.33"
+rusttype = "0.9.2"
+
+# Scripting
+mlua = {version = "0.8.3", features = ["luajit", "vendored", "serialize"]}
+dashmap = "5.4.0"
+
+# Serialization
+serde = "1.0.144"
+
+# Keyboard/Mouse Input
+device_query = "1.1.1"
+
+# Audio
+soloud = "1.0.2"
+
+# Physics
+rapier2d-f64 = "0.14.0"
+rapier3d-f64 = "0.14.0"
+
+# Pathfinding
+pathfinding = "3.0.13"
+
+[dependencies.sdl2]
+version = "0.35.2"
+default-features = false
+features = ["bundled", "static-link", "use-vcpkg"]
+
+[package.metadata.vcpkg]
+dependencies = ["sdl2"]
+git = "https://github.com/microsoft/vcpkg"
+rev = "261c458af6e3eed5d099144aff95d2b5035f656b"
+
+[package.metadata.vcpkg.target]
+x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
