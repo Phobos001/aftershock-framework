@@ -1,3 +1,5 @@
+use mlua::prelude::*;
+
 #[derive(Debug, Copy, Clone)]
 pub struct SquaresRNG {
     pub key: u64,
