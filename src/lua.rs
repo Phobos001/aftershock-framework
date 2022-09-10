@@ -18,6 +18,7 @@ use crate::VideoData;
 use crate::EngineVideoMode;
 
 use crate::rasterizer::Rasterizer;
+use crate::partitioned_rasterizer::*;
 
 use std::rc::Rc;
 use std::cell::RefCell;
@@ -58,7 +59,7 @@ impl LuaScript {
             VideoData { screen_resolution: (384, 216), stretch_fill: false, mode: EngineVideoMode::Windowed})
         );
 
-        let rasterizer: SharedRasterizer        = Rc::new(RefCell::new(Rasterizer::new(384, 216)));
+        let rasterizer: SharedRasterizer        = Rc::new(RefCell::new(PartitionedRasterizer::new(384, 216)));
         let controls:   SharedControlData       = Rc::new(RefCell::new(ControlData::new()));
         let rng:        SharedRNG               = Rc::new(RefCell::new(SquaresRNG::new_with_key(0, keys::KEYS_TABLE[0])));
 
@@ -90,7 +91,7 @@ impl LuaScript {
     }
 
     pub fn framebuffer_to_u32(&self) -> Vec<u32> {
-        self.rasterizer.borrow_mut().color.chunks_exact(4)
+        self.rasterizer.borrow_mut().rasterizer.color.chunks_exact(4)
                         .map(|c| (c[0] as u32) << 16 | (c[1] as u32) << 8 | (c[2] as u32) << 0)
                         .collect()
     }

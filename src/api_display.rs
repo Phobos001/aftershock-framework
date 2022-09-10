@@ -40,13 +40,13 @@ pub fn register_display_api(rasterizer: SharedRasterizer, video_data: SharedVide
 
     let rst = rasterizer.clone();
     let fn_display_width = lua.create_function(move |_, ()| {
-        Ok(rst.borrow().width)
+        Ok(rst.borrow().rasterizer.width)
     }).unwrap();
     let _ = lua.globals().set("draw_width", fn_display_width);
 
     let rst = rasterizer.clone();
     let fn_display_height = lua.create_function(move |_, ()| {
-        Ok(rst.borrow().height)
+        Ok(rst.borrow().rasterizer.height)
     }).unwrap();
     let _ = lua.globals().set("draw_height", fn_display_height);
 }

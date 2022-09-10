@@ -1,4 +1,7 @@
 use std::ops::Range;
+use std::sync::atomic::AtomicU8;
+
+use rapier2d_f64::crossbeam::epoch::Atomic;
 
 use crate::color::*;
 use crate::vector2::*;
@@ -12,7 +15,6 @@ pub type PSetOp = fn(&mut Rasterizer, usize, Color);
 /// Controls how a Rasterizer should draw incoming pixels.
 #[derive(Debug, Clone, Copy)]
 pub enum DrawMode {
-    Collect,
     NoOp,
     NoAlpha,
     Opaque,
@@ -36,14 +38,6 @@ pub enum DrawMode {
     PatternInvertedBgAlpha,
     PatternInvertedBgOpaque,
     // Collect,
-}
-
-fn pset_collect(rasterizer: &mut Rasterizer, idx: usize, color: Color) {
-    let unstrided_idx = (idx / 4) as i64;
-    let x = unstrided_idx.rem_euclid(rasterizer.width as i64);
-    let y = unstrided_idx / rasterizer.height as i64;
-
-    rasterizer.collected_pixels.push((x, y, color));
 }
 
 fn pset_noop(rasterizer: &mut Rasterizer, idx: usize, color: Color) {
@@ -221,6 +215,9 @@ pub struct Rasterizer {
 
     render_next_frame_as_animation: bool,
     render_next_frame_folder: String,
+
+    pub offset_x: usize,
+    pub offset_y: usize,
     
     pub width: usize,
     pub height: usize,
@@ -231,7 +228,6 @@ pub struct Rasterizer {
     pub opacity: u8,
 
     pub drawn_pixels_since_clear: u64,
-    pub collected_pixels: Vec<(i64, i64, Color)>
 }
 
 impl Rasterizer {
@@ -249,6 +245,9 @@ impl Rasterizer {
             render_next_frame_as_animation: false,
             render_next_frame_folder: "./".to_string(),
 
+            offset_x: 0,
+            offset_y: 0,
+
             width,
             height,
             color: vec![0; width * height * 4],
@@ -258,7 +257,6 @@ impl Rasterizer {
             opacity: 255,
 
             drawn_pixels_since_clear: 0,
-            collected_pixels: Vec::new(),
         }
     }
 
@@ -268,6 +266,8 @@ impl Rasterizer {
 				//println!("Image: {}, Res: {} x {}, Size: {}B", path_to, image.width, image.height, image.buffer.len());
 				//let buffer_new: Vec<u8> =  image.buffer.as_bytes().to_vec();
                 use rgb::*;
+
+                // Convert to atomics for parallelism
 
 				Ok(Rasterizer {
                     pset_op: pset_opaque,
@@ -283,8 +283,10 @@ impl Rasterizer {
                     tint: Color::white(),
                     opacity: 255,
 
+                    offset_x: 0,
+                    offset_y: 0,
+
                     drawn_pixels_since_clear: 0,
-                    collected_pixels: Vec::new(),
                 })
 			},
 			Err(reason) => {
@@ -306,7 +308,6 @@ impl Rasterizer {
     /// * 'mode' - Which drawing function should the Rasterizer use.
     pub fn set_draw_mode(&mut self, mode: DrawMode) {
         match mode {
-            DrawMode::Collect               => {self.pset_op = pset_collect;}
             DrawMode::NoOp                  => {self.pset_op = pset_noop;}
             DrawMode::NoAlpha               => {self.pset_op = pset_noalpha;}
             DrawMode::Opaque                => {self.pset_op = pset_opaque;},
@@ -324,6 +325,63 @@ impl Rasterizer {
     pub fn save_next_frame_draw_process_until_clear(&mut self, path_to: &str) {
         self.render_next_frame_as_animation = true;
         self.render_next_frame_folder = path_to.to_string();
+    }
+
+    pub fn blit(&mut self, src: &Rasterizer) {
+        
+        let stride = 4;
+        // We blit these directly into the color buffer because otherwise we'd just be drawing everything over again and we don't have to worry about depth
+        
+        // The color array is a 1D row of bytes, so we have to do this in sets of rows
+        // Make sure this actually fits inside the buffer
+        let extent_width: usize = src.offset_x + src.width;
+        let extent_height: usize = src.offset_y + src.height;
+    
+        let src_height: usize = src.height;
+        let dst_height: usize = self.height;
+    
+        // If this goes out of bounds at all we should not draw it. Otherwise it WILL panic.
+        let not_too_big: bool = self.width * self.height < src.width * src.height;
+        let not_out_of_bounds: bool = extent_width > self.width || extent_height > self.height;
+        if not_too_big && not_out_of_bounds { 
+            println!("ERROR - FRAMEBUFFER BLIT: Does not fit inside target buffer!"); 
+            return;
+        }
+    
+        // Lets get an array of rows so we can blit them directly into the color buffer
+        let mut rows_src: Vec<&[u8]> = Vec::new();
+    
+        // Build a list of rows to blit to the screen.
+        src.color.chunks_exact(src.width * stride).enumerate().for_each(|(_, row)| {
+            rows_src.push(row);
+        });
+    
+        let is_equal_size: bool = self.width == src.width && self.height == src.height;
+    
+        // Goes through each row of fbuf and split it twice into the slice that fits our rows_src.
+        self.color.chunks_exact_mut(self.width * stride).enumerate().for_each(|(i, row_dst)| {
+            // if i >= dst_height { return; } // Never happens?
+            if i >= src.offset_y && i < src.offset_y + src_height { 
+                if is_equal_size {
+                    row_dst.copy_from_slice(rows_src[i]);
+                } else {
+                    // We need to cut the row into a section that we can just set equal to our row
+                    // Make sure that we are actually in the bounds from our source buffer
+                    if i >= src.offset_y && i < (src.offset_y + rows_src.len()) {
+                        // [......|#######]
+                        // Split at the stride distance to get the first end
+                        let rightsect = row_dst.split_at_mut(src.offset_x * stride).1;
+        
+                        // [......|####|...]
+                        // Get the second half but left
+                        let section = rightsect.split_at_mut((extent_width - src.offset_x) * stride).0;
+        
+                        // I HAVE YOU NOW
+                        section.copy_from_slice(rows_src[i-src.offset_y]);
+                    }
+                }
+            }
+        });
     }
 
     /// Clears the frame memory directly, leaving a black screen.
@@ -345,10 +403,6 @@ impl Rasterizer {
         });
         self.drawn_pixels_since_clear = 0;
         self.render_next_frame_as_animation = false;
-    }
-
-    pub fn clear_collected(&mut self) {
-        self.collected_pixels = Vec::with_capacity(self.collected_pixels.len());
     }
 
     /// Draws a pixel to the color buffer, using the Rasterizers set DrawMode. DrawMode defaults to Opaque.
@@ -386,6 +440,11 @@ impl Rasterizer {
     /// Draws a line across two points
     pub fn pline(&mut self, x0: i64, y0: i64, x1: i64, y1: i64, color: Color) {
         // Cant find original source but it's been modified for Rust from C or C++
+
+        let x0 = i64::clamp(x0, 0, self.width as i64);
+        let x1 = i64::clamp(x1, 0, self.width as i64);
+        let y0 = i64::clamp(y0, 0, self.height as i64);
+        let y1 = i64::clamp(y1, 0, self.height as i64);
 
         // Create local variables for moving start point
         let mut x0 = x0;
@@ -846,7 +905,7 @@ impl Rasterizer {
     }
 
     /// Draws a quadratic beizer curve onto the screen.
-    pub fn pbeizer(&mut self, thickness: i64, x0: i64, y0: i64, x1: i64, y1: i64, mx: i64, my: i64, color: Color) {
+    pub fn pbeizer(&mut self, x0: i64, y0: i64, x1: i64, y1: i64, mx: i64, my: i64, color: Color) {
         let mut step: f64 = 0.0;
 
         // Get the maximal number of pixels we will need to use and get its inverse as a step size.
@@ -866,13 +925,13 @@ impl Rasterizer {
         loop {
             if step > 1.0 { break; }
 
-            let px0 = lerpf(x0, mx, step);
-            let py0 = lerpf(y0, my, step);
+            let px0 = f64::clamp(lerpf(x0, mx, step), 0.0, self.width as f64);
+            let py0 = f64::clamp(lerpf(y0, my, step), 0.0, self.height as f64);
 
-            let px1 = lerpf(px0, x1, step);
-            let py1 = lerpf(py0, y1, step);
+            let px1 = f64::clamp(lerpf(px0, x1, step), 0.0, self.width as f64);
+            let py1 = f64::clamp(lerpf(py0, y1, step), 0.0, self.height as f64);
 
-            self.pcircle(true, px1 as i64, py1 as i64, thickness, color);
+            self.pset(px1 as i64, py1 as i64, color);
             step += stride;
         }
     }
@@ -901,54 +960,51 @@ impl Rasterizer {
         loop {
             if step > 1.0 { break; }
 
-            let px0 = lerpf(x0, mx0, step);
-            let py0 = lerpf(y0, my0, step);
+            let px0 = f64::clamp(lerpf(x0, mx0, step), 0.0, self.width as f64);
+            let py0 = f64::clamp(lerpf(y0, my0, step), 0.0, self.height as f64);
 
-            let px1 = lerpf(px0, mx1, step);
-            let py1 = lerpf(py0, my1, step);
+            let px1 = f64::clamp(lerpf(px0, mx1, step), 0.0, self.width as f64);
+            let py1 = f64::clamp(lerpf(py0, my1, step), 0.0, self.height as f64);
 
-            let px2 = lerpf(px1, x1, step);
-            let py2 = lerpf(py1, y1, step);
+            let px2 = f64::clamp(lerpf(px1, x1, step), 0.0, self.width as f64);
+            let py2 = f64::clamp(lerpf(py1, y1, step), 0.0, self.height as f64);
 
             self.pset(px2 as i64, py2 as i64, color);
             step += stride;
         }
     }
 
-
-    // Collecting versions of drawing functions
-
     /// Returns pixel positions across the line.
-     pub fn cline(&mut self, x0: i64, y0: i64, x1: i64, y1: i64) -> Vec<(i64, i64)> {
+    pub fn cline(&mut self, x0: i64, y0: i64, x1: i64, y1: i64) -> Vec<(i64, i64)> {
 
         let mut pixels: Vec<(i64, i64)> = Vec::new();
 
         // Create local variables for moving start point
         let mut x0 = x0;
         let mut y0 = y0;
-    
+
         // Get absolute x/y offset
         let dx = if x0 > x1 { x0 - x1 } else { x1 - x0 };
         let dy = if y0 > y1 { y0 - y1 } else { y1 - y0 };
-    
+
         // Get slopes
         let sx = if x0 < x1 { 1 } else { -1 };
         let sy = if y0 < y1 { 1 } else { -1 };
-    
+
         // Initialize error
         let mut err = if dx > dy { dx } else {-dy} / 2;
         let mut err2;
-    
+
         loop {
             // Set pixel
             pixels.push((x0, y0));
-    
+
             // Check end condition
             if x0 == x1 && y0 == y1 { break };
-    
+
             // Store old error
             err2 = 2 * err;
-    
+
             // Adjust error and start position
             if err2 > -dx { err -= dy; x0 += sx; }
             if err2 < dy { err += dx; y0 += sy; }

@@ -5,13 +5,14 @@ use std::sync::Arc;
 use dashmap::DashMap;
 use soloud::{Soloud, Wav, WavStream};
 
+use crate::partitioned_rasterizer::PartitionedRasterizer;
 use crate::squaresrng::SquaresRNG;
 use crate::VideoData;
 use crate::rasterizer::Rasterizer;
 use crate::controls::ControlData;
 
 pub type SharedVideoData = Rc<RefCell<VideoData>>;
-pub type SharedRasterizer = Rc<RefCell<Rasterizer>>;
+pub type SharedRasterizer = Rc<RefCell<PartitionedRasterizer>>;
 pub type SharedControlData = Rc<RefCell<ControlData>>;
 pub type SharedRNG = Rc<RefCell<SquaresRNG>>;
 

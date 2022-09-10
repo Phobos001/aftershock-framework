@@ -13,6 +13,7 @@ mod squaresrng;
 mod color;
 mod font;
 mod rasterizer;
+mod partitioned_rasterizer;
 
 mod api_shareables;
 mod api_audio;
@@ -265,7 +266,7 @@ pub fn main() {
             // Check for altered window properties
             {
                 // Check for resize
-                let (rst_width, rst_height) = (engine.lua_global.rasterizer.borrow().width, engine.lua_global.rasterizer.borrow().height);
+                let (rst_width, rst_height) = (engine.lua_global.rasterizer.borrow().rasterizer.width, engine.lua_global.rasterizer.borrow().rasterizer.height);
                 if  rst_width != last_width || rst_height != last_height {
                     engine.video.screen_resolution = (rst_width, rst_height);
 
@@ -344,9 +345,10 @@ pub fn main() {
                 if draw_error.is_err() {
                     lua_error = Some(format!("Runtime Error: Lua: {}", draw_error.err().unwrap()));
                 }
+                engine.lua_global.rasterizer.borrow_mut().draw_debug_view();
 
                 // Present to screen
-                let _ = screentex.update(None, &engine.lua_global.rasterizer.borrow().color, (engine.lua_global.rasterizer.borrow().width * 4) as usize);
+                let _ = screentex.update(None, &engine.lua_global.rasterizer.borrow().rasterizer.color, (engine.lua_global.rasterizer.borrow().rasterizer.width * 4) as usize);
                 let _ = canvas.copy(&screentex, None, None);
                 canvas.present();
 

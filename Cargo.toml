@@ -32,6 +32,9 @@ rapier3d-f64 = "0.14.0"
 # Pathfinding
 pathfinding = "3.0.13"
 
+# Parallel
+num_cpus = "1.13.1"
+
 [dependencies.sdl2]
 version = "0.35.2"
 default-features = false

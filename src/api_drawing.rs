@@ -4,33 +4,16 @@ use crate::font::*;
 
 use mlua::prelude::*;
 
+use std::sync::Arc;
+
 use crate::api_shareables::*;
 
 pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasterizer, lua: &Lua) {
 
-    let rst = rasterizer.clone();
-    let fn_get_collected_pixels = lua.create_function(move |luamove, ()| {
-        let list = luamove.create_table().unwrap();
-        let xlist = luamove.create_table().unwrap();
-        let ylist = luamove.create_table().unwrap();
-
-        let rst_ref = rst.borrow_mut();
-        let pixels = &rst_ref.collected_pixels;
-        for i in 0..pixels.len() {
-            let _ = xlist.set(i, pixels[i].0);
-            let _ = ylist.set(i, pixels[i].1);
-        }
-        let _ = list.set("x", xlist);
-        let _ = list.set("y", ylist);
-        Ok(list)
-    }).unwrap();
-    //let _ = lua.globals().set("get_collected_pixels", fn_get_collected_pixels);
-    // Slower than just calling pset, disabled
-
     // Draw Mode: No Operation //
     let rst = rasterizer.clone();
     let fn_set_draw_mode_noop = lua.create_function(move |_, ()| {
-        rst.borrow_mut().set_draw_mode(DrawMode::NoOp);
+        rst.borrow_mut().rasterizer.set_draw_mode(DrawMode::NoOp);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("set_draw_mode_noop", fn_set_draw_mode_noop);
@@ -38,7 +21,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // Draw Mode: Opaque //
     let rst = rasterizer.clone();
     let fn_set_draw_mode_opaque = lua.create_function(move |_, ()| {
-        rst.borrow_mut().set_draw_mode(DrawMode::Opaque);
+        rst.borrow_mut().rasterizer.set_draw_mode(DrawMode::Opaque);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("set_draw_mode_opaque", fn_set_draw_mode_opaque);
@@ -46,7 +29,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // Draw Mode: Alpha //
     let rst = rasterizer.clone();
     let fn_set_draw_mode_alpha = lua.create_function(move |_, ()| {
-        rst.borrow_mut().set_draw_mode(DrawMode::Alpha);
+        rst.borrow_mut().rasterizer.set_draw_mode(DrawMode::Alpha);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("set_draw_mode_alpha", fn_set_draw_mode_alpha);
@@ -54,7 +37,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // Draw Mode: Addition //
     let rst = rasterizer.clone();
     let fn_set_draw_mode_addition = lua.create_function(move |_, ()| {
-        rst.borrow_mut().set_draw_mode(DrawMode::Addition);
+        rst.borrow_mut().rasterizer.set_draw_mode(DrawMode::Addition);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("set_draw_mode_addition", fn_set_draw_mode_addition);
@@ -62,7 +45,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // Draw Mode: Subtract //
     let rst = rasterizer.clone();
     let fn_set_draw_mode_subtraction = lua.create_function(move |_, ()| {
-        rst.borrow_mut().set_draw_mode(DrawMode::Subtraction);
+        rst.borrow_mut().rasterizer.set_draw_mode(DrawMode::Subtraction);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("set_draw_mode_subtraction", fn_set_draw_mode_subtraction);
@@ -70,7 +53,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // Draw Mode: Multiply //
     let rst = rasterizer.clone();
     let fn_set_draw_mode_multiply = lua.create_function(move |_, ()| {
-        rst.borrow_mut().set_draw_mode(DrawMode::Multiply);
+        rst.borrow_mut().rasterizer.set_draw_mode(DrawMode::Multiply);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("set_draw_mode_subtraction", fn_set_draw_mode_multiply);
@@ -110,7 +93,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // pcircle //
     let rst = rasterizer.clone();
     let fn_pcircle = lua.create_function(move |_, (filled, xc, yc, r, color): (bool, i64, i64, i64, Color)| {
-        rst.borrow_mut().pcircle(filled, xc, yc, r, color);
+        rst.borrow_mut().rasterizer.pcircle(filled, xc, yc, r, color);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("pcircle", fn_pcircle);
@@ -126,7 +109,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // ptriangle //
     let rst = rasterizer.clone();
     let fn_ptriangle = lua.create_function(move |_, (filled, x0, y0, x1, y1, x2, y2, color): (bool, i64, i64, i64, i64, i64, i64, Color)| {
-        rst.borrow_mut().ptriangle(filled, x0, y0, x1, y1, x2, y2, color);
+        rst.borrow_mut().rasterizer.ptriangle(filled, x0, y0, x1, y1, x2, y2, color);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("ptriangle", fn_ptriangle);
@@ -134,7 +117,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // pbeizer //
     let rst = rasterizer.clone();
     let fn_pbeizer = lua.create_function(move |_, (thickness, x0, y0, x1, y1, mx, my, color): (i64, i64, i64, i64, i64, i64, i64, Color)| {
-        rst.borrow_mut().pbeizer(thickness, x0, y0, x1, y1, mx, my, color);
+        rst.borrow_mut().rasterizer.pbeizer(x0, y0, x1, y1, mx, my, color);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("pbeizer", fn_pbeizer);
@@ -146,7 +129,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
         //let imga_ref = imga.get();
         let img_result = imga.get(&name);
         if img_result.is_some() {
-            rst.borrow_mut().pimg(&img_result.unwrap(), x as i64, y as i64);
+            rst.borrow_mut().rasterizer.pimg(&img_result.unwrap(), x as i64, y as i64);
         }
         
         Ok(())
@@ -182,7 +165,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // pprint //
     let rst = rasterizer.clone();
     let fn_pprint = lua.create_function(move |_, (font, text, x, y): (Font, String, f64, f64)| {
-        rst.borrow_mut().pprint(&font, text, x as i64, y as i64, 2, None);
+        rst.borrow_mut().rasterizer.pprint(&font, text, x as i64, y as i64, 2, None);
         Ok(())
     } ).unwrap();
     let _ = lua.globals().set("pprint", fn_pprint);
