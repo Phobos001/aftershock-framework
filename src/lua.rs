@@ -9,7 +9,6 @@ use crate::api_font::*;
 use crate::api_image::*;
 use crate::api_input::*;
 use crate::api_profiling::*;
-use crate::api_rng::*;
 
 use crate::api_shareables::*;
 
@@ -24,10 +23,6 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::sync::Arc;
 
-use crate::squaresrng::SquaresRNG;
-
-use crate::keys;
-
 pub struct LuaScript {
     pub window_title:   String,
     pub video_data:     SharedVideoData,
@@ -36,7 +31,6 @@ pub struct LuaScript {
 
     pub controls:       SharedControlData,
     pub rasterizer:     SharedRasterizer,
-    pub rng:            SharedRNG,
     pub audio:          SharedAudio,
 
     pub assets_sfx:     SharedAudioWav,
@@ -59,9 +53,8 @@ impl LuaScript {
             VideoData { screen_resolution: (384, 216), stretch_fill: false, mode: EngineVideoMode::Windowed})
         );
 
-        let rasterizer: SharedRasterizer        = Rc::new(RefCell::new(PartitionedRasterizer::new(384, 216)));
+        let rasterizer: SharedRasterizer        = Rc::new(RefCell::new(PartitionedRasterizer::new(384, 216, 0)));
         let controls:   SharedControlData       = Rc::new(RefCell::new(ControlData::new()));
-        let rng:        SharedRNG               = Rc::new(RefCell::new(SquaresRNG::new_with_key(0, keys::KEYS_TABLE[0])));
 
         let assets_sfx: SharedAudioWav          = Arc::new(DashMap::new());
         let assets_mus: SharedAudioWavStream    = Arc::new(DashMap::new());
@@ -76,7 +69,6 @@ impl LuaScript {
         register_input_api(controls.clone(), &lua);
         register_image(assets_img.clone(),&lua);
         register_profiling_api(&lua);
-        register_rng_api(rng.clone(), &lua);
         register_font(&lua);
 
         
@@ -86,7 +78,7 @@ impl LuaScript {
             let e = test_file.err().unwrap();
             Err(format!("Lua: file failed to load! Error: {}", e))
         } else {
-            Ok(LuaScript { window_title: title, video_data, lua, controls, rasterizer, rng, audio: soloud, assets_sfx, assets_mus, assets_img})
+            Ok(LuaScript { window_title: title, video_data, lua, controls, rasterizer, audio: soloud, assets_sfx, assets_mus, assets_img})
         }
     }
 

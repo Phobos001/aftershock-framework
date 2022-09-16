@@ -7,13 +7,13 @@ mod lua;
 mod math;
 mod vector2;
 mod matrix3;
-mod squaresrng;
 
 // Software Rendering
 mod color;
 mod font;
 mod rasterizer;
 mod partitioned_rasterizer;
+
 
 mod api_shareables;
 mod api_audio;
@@ -23,13 +23,11 @@ mod api_drawing;
 mod api_font;
 mod api_image;
 mod api_input;
+mod api_physics;
 mod api_profiling;
-mod api_rng;
 
 mod error_data;
 
-// RNG Key Table
-mod keys;
 
 use crate::font::Font;
 use crate::lua::LuaScript;
@@ -345,7 +343,7 @@ pub fn main() {
                 if draw_error.is_err() {
                     lua_error = Some(format!("Runtime Error: Lua: {}", draw_error.err().unwrap()));
                 }
-                engine.lua_global.rasterizer.borrow_mut().draw_debug_view();
+                //engine.lua_global.rasterizer.borrow_mut().draw_debug_view();
 
                 // Present to screen
                 let _ = screentex.update(None, &engine.lua_global.rasterizer.borrow().rasterizer.color, (engine.lua_global.rasterizer.borrow().rasterizer.width * 4) as usize);

@@ -10,6 +10,7 @@ pub enum MouseButton {
     X2,
 }
 
+#[derive(Debug, Clone, Copy)]
 pub struct KeyBind {
     pub keybit: u8,
     pub keycode: Keycode,
@@ -17,8 +18,8 @@ pub struct KeyBind {
 
 pub struct ControlData {
     pub binds: Vec<KeyBind>,
-    pub controls: u64,
-    pub controls_last: u64,
+    pub controls: u128,
+    pub controls_last: u128,
 
     pub device_state: DeviceState,
 
@@ -27,21 +28,16 @@ pub struct ControlData {
 }
 
 impl ControlData {
-    pub const MOUSE_LEFT: u8    = 0;
-    pub const MOUSE_RIGHT: u8   = 1;
-    pub const MOUSE_MIDDLE: u8  = 2;
-    pub const MOVE_FORWARD: u8     = 3;
-    pub const MOVE_BACKWARD: u8   = 4;
-    pub const MOVE_LEFT: u8     = 5;
-    pub const MOVE_RIGHT: u8    = 6;
-    pub const JUMP: u8 = 7;
-    pub const CROUCH: u8 = 8;
-
-
+    pub const CONSOLE: u8       = 122;
+    pub const MOUSE_LEFT: u8    = 123;
+    pub const MOUSE_RIGHT: u8   = 124;
+    pub const MOUSE_MIDDLE: u8  = 125;
+    pub const MOUSE_X1: u8      = 126;
+    pub const MOUSE_X2: u8      = 127;
 
     pub fn new() -> ControlData {
         ControlData {
-            binds: ControlData::generate_default_keybinds(),
+            binds: vec![KeyBind { keybit: ControlData::CONSOLE, keycode: Keycode::Grave }; 1],
             controls: 0,
             controls_last: 0,
 
@@ -50,15 +46,6 @@ impl ControlData {
             mouse: Vector2::ZERO,
             mouse_delta: Vector2::ZERO,
         }
-    }
-
-    pub fn generate_default_keybinds() -> Vec<KeyBind> {
-        Vec::from([
-            KeyBind { keybit: ControlData::MOVE_LEFT,      keycode: Keycode::A},
-            KeyBind { keybit: ControlData::MOVE_RIGHT,     keycode: Keycode::D},
-            KeyBind { keybit: ControlData::MOVE_FORWARD,      keycode: Keycode::W},
-            KeyBind { keybit: ControlData::MOVE_BACKWARD,    keycode: Keycode::S},
-        ])
     }
 
     pub fn is_control_down(&self, control: u8) -> bool {
@@ -75,7 +62,6 @@ impl ControlData {
 
     pub fn update_mouse_delta(&mut self, xrel: f64, yrel: f64) {
         self.mouse_delta = Vector2::new(xrel as f64, yrel as f64);
-        
     }
 
     pub fn update_controls(&mut self, screen_width: usize, screen_height: usize, video_width: usize, video_height: usize, fullscreen: bool, sdl_x: f64, sdl_y: f64) {
@@ -102,6 +88,14 @@ impl ControlData {
 
         if mouse_state.button_pressed[2] {
             self.controls |= 1 << ControlData::MOUSE_MIDDLE;
+        }
+
+        if mouse_state.button_pressed[3] {
+            self.controls |= 1 << ControlData::MOUSE_X1;
+        }
+
+        if mouse_state.button_pressed[4] {
+            self.controls |= 1 << ControlData::MOUSE_X2;
         }
 
         let keys: Vec<Keycode> = self.device_state.get_keys();

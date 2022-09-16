@@ -1,9 +1,7 @@
-use std::ops::Range;
-use std::sync::atomic::AtomicU8;
-
-use rapier2d_f64::crossbeam::epoch::Atomic;
+use rayon::prelude::*;
 
 use crate::color::*;
+use crate::partitioned_rasterizer::PartitionedRasterizer;
 use crate::vector2::*;
 use crate::matrix3::*;
 use crate::font::*;
@@ -216,12 +214,17 @@ pub struct Rasterizer {
     render_next_frame_as_animation: bool,
     render_next_frame_folder: String,
 
+    // For Partitioned Rasterizer
     pub offset_x: usize,
     pub offset_y: usize,
     
     pub width: usize,
     pub height: usize,
     pub color: Vec<u8>,
+
+    pub camera_position: Vector2,
+    pub camera_rotation: f64,
+    pub camera_scale: Vector2,
 
     pub draw_mode: DrawMode,
     pub tint: Color,
@@ -252,6 +255,10 @@ impl Rasterizer {
             height,
             color: vec![0; width * height * 4],
 
+            camera_position: Vector2::ZERO,
+            camera_rotation: 0.0,
+            camera_scale: Vector2::ONE,
+
             draw_mode: DrawMode::Opaque,
             tint: Color::white(),
             opacity: 255,
@@ -278,6 +285,10 @@ impl Rasterizer {
                     width: image.width,
                     height: image.height,
                     color: image.buffer.as_bytes().to_vec(),
+
+                    camera_position: Vector2::ZERO,
+                    camera_rotation: 0.0,
+                    camera_scale: Vector2::ONE,
 
                     draw_mode: DrawMode::Opaque,
                     tint: Color::white(),
@@ -327,8 +338,28 @@ impl Rasterizer {
         self.render_next_frame_folder = path_to.to_string();
     }
 
-    pub fn blit(&mut self, src: &Rasterizer) {
-        
+    pub fn into_partitioned(&self) -> PartitionedRasterizer {
+        let mut pr = PartitionedRasterizer::new(self.width, self.height, 0);
+        pr.rasterizer.blit(self, 0, 0);
+        pr
+    }
+
+    /// Create a copy of a region 
+    /*pub fn blit_copy(&self, x: i64, y: i64, width: usize, height: usize) -> Rasterizer {
+        let stride = 4;
+
+        let mut rasterizer: Rasterizer = Rasterizer::new(width, height);
+
+        // Go down in rows. i is the current row.
+        self.color.chunks_exact(self.width * 4).enumerate().for_each(|(row_idx, pixel)| {
+            if (row_idx as i64) > y && (row_idx as i64) <= (y + height as i64) {
+                //let sx = i64::clamp(x, 0, self.width)l
+            }
+        });
+    }*/
+
+    pub fn blit(&mut self, src: &Rasterizer, x: i64, y: i64) {
+
         let stride = 4;
         // We blit these directly into the color buffer because otherwise we'd just be drawing everything over again and we don't have to worry about depth
         
@@ -395,12 +426,23 @@ impl Rasterizer {
     /// # Arguments
     /// * 'color' - Color the screen should be cleared too.
     pub fn clear_color(&mut self, color: Color) {
-        self.color.chunks_exact_mut(4).for_each(|c| {
-            c[0] = color.r;
-            c[1] = color.g;
-            c[2] = color.b;
-            c[3] = color.a;
-        });
+        let parallel_threshold = 129600;
+        if self.width * self.height > parallel_threshold {
+            self.color.par_chunks_exact_mut(4).for_each(|c| {
+                c[0] = color.r;
+                c[1] = color.g;
+                c[2] = color.b;
+                c[3] = color.a;
+            });
+        } else {
+            self.color.chunks_exact_mut(4).for_each(|c| {
+                c[0] = color.r;
+                c[1] = color.g;
+                c[2] = color.b;
+                c[3] = color.a;
+            });
+        }
+        
         self.drawn_pixels_since_clear = 0;
         self.render_next_frame_as_animation = false;
     }
@@ -408,17 +450,8 @@ impl Rasterizer {
     /// Draws a pixel to the color buffer, using the Rasterizers set DrawMode. DrawMode defaults to Opaque.
     pub fn pset(&mut self, x: i64, y: i64, color: Color) {
         self.drawn_pixels_since_clear += 1;
-        let x = x.rem_euclid(self.width as i64);
-        let y = y.rem_euclid(self.height as i64);
-        let idx: usize = ((y * (self.width as i64) + x) * 4) as usize;
-
-
-        // We have to put paraenthesis around the fn() variables or else the compiler will think it's a method.
-        (self.pset_op)(self, idx, color);
-    }
-
-    /// Gets a color from the color buffer.
-    pub fn pget(&self, x: i64, y: i64) -> Color {
+        //let x = x.rem_euclid(self.width as i64);
+        //let y = y.rem_euclid(self.height as i64);
         let idx: usize = ((y * (self.width as i64) + x) * 4) as usize;
 
         let out_left: bool = x < 0;
@@ -427,7 +460,24 @@ impl Rasterizer {
         let out_bottom: bool = y > (self.height) as i64 - 1;
         let out_of_range: bool = idx > (self.width * self.height * 4) - 1;
 
-        if out_of_range || out_left || out_right || out_top || out_bottom  { return Color::black(); }
+        if out_of_range || out_left || out_right || out_top || out_bottom  { return; }
+
+        // We have to put paraenthesis around the fn() variables or else the compiler will think it's a method.
+        (self.pset_op)(self, idx, color);
+    }
+
+    /// Gets a color from the color buffer.
+    pub fn pget(&self, x: i64, y: i64) -> Color {
+
+        let idx: usize = ((y * (self.width as i64) + x) * 4) as usize;
+
+        let out_left: bool = x < 0;
+        let out_right: bool = x > (self.width) as i64 - 1;
+        let out_top: bool = y < 0;
+        let out_bottom: bool = y > (self.height) as i64 - 1;
+        let out_of_range: bool = idx > (self.width * self.height * 4) - 1;
+
+        if out_of_range || out_left || out_right || out_top || out_bottom  { return Color::clear(); }
 
         return Color::new(
             self.color[idx + 0],
@@ -563,11 +613,16 @@ impl Rasterizer {
         let y0 = i64::clamp(y, 0, self.height as i64);
         let y1 = i64::clamp(y + (image.height as i64), 0, self.height as i64);
 
-        for ly in y0..y1 {
-            for lx in x0..x1 {
-                let pc = image.pget(lx as i64, ly as i64);
-                if pc.a <= 0 { continue; }
-                self.pset(x + lx as i64, y + ly as i64, pc);
+        for ly in 0..image.height as i64 {
+            for lx in 0..image.width as i64 {
+                let pc = image.pget(lx, ly);
+                let px = x + lx;
+                let py = y + ly;
+                
+                // Pixel out of bounds
+                if pc.a <= 0 || (px < 0 || px > self.width as i64) || (py < 0 || py > self.height as i64) { continue; }
+
+                self.pset(x + lx, y + ly, pc);
             }
         }
     }
@@ -592,6 +647,14 @@ impl Rasterizer {
     /// Draws a rotated and scaled image to the screen using matrix multiplication.
     pub fn pimgmtx(&mut self, image: &Rasterizer, position_x: f64, position_y: f64, rotation: f64, scale_x: f64, scale_y: f64, offset_x: f64, offset_y: f64) {
 
+        // Early out if the image is going to be too small to draw
+        //let area_x = image.width as f64 * scale_x;
+        //let area_y = image.height as f64 * scale_y;
+
+        //if area_x * area_y < 1.0 {
+        //    return;
+        //}
+
         let offset_x = -lerpf(0.0, image.width as f64, offset_x);
         let offset_y = -lerpf(0.0, image.height as f64, offset_y);
 
@@ -599,12 +662,30 @@ impl Rasterizer {
         let offset: Vector2 = Vector2::new(offset_x, offset_y);
         let scale: Vector2 = Vector2::new(scale_x, scale_y);
 
+        // Get Rasterizer Camera Matrix Setup
+
+        // Camera is usually in the top left corner so we need to change the zoom scaling so it fits in the middle of the screen
+        let camera_offset: Vector2 = Vector2::new(
+            -lerpf(0.0, self.width as f64, 0.5),
+            -lerpf(0.0, self.height as f64, 0.5),
+        );
+
+        let camera_mtx_o = Matrix3::translated(camera_offset);
+        let camera_mtx_r = Matrix3::rotated(self.camera_rotation);
+        let camera_mtx_p = Matrix3::translated(-self.camera_position + Vector2::new(self.width as f64 / 2.0, self.height as f64 / 2.0));
+        let camera_mtx_s = Matrix3::scaled(self.camera_scale);
+
+        // Combine matricies using matrix multiplication
+        let camera_cmtx = camera_mtx_p * camera_mtx_r * camera_mtx_s * camera_mtx_o;
+
+        // Get sprite matrix setup
         let mtx_o = Matrix3::translated(offset);
         let mtx_r = Matrix3::rotated(rotation);
         let mtx_p = Matrix3::translated(position);
         let mtx_s = Matrix3::scaled(scale);
 
-        let cmtx = mtx_p * mtx_r * mtx_s * mtx_o;
+        // Combine camera matrix with sprite matrix
+        let cmtx = camera_cmtx * mtx_p * mtx_r * mtx_s * mtx_o;
 
         // We have to get the rotated bounding box of the rotated sprite in order to draw it correctly without blank pixels
         let start_center: Vector2 = cmtx.forward(Vector2::ZERO);
@@ -631,10 +712,10 @@ impl Rasterizer {
         ex = f64::max(ex, p4.x); ey = f64::max(ey, p4.y);
 
         // Extend the bounding box by a few pixels to catch clipping errors
-        let mut rsx = sx as i64-8;
-        let mut rsy = sy as i64-8;
-        let mut rex = ex as i64+8;
-        let mut rey = ey as i64+8;
+        let mut rsx = sx as i64;
+        let mut rsy = sy as i64;
+        let mut rex = ex as i64+1;
+        let mut rey = ey as i64+1;
 
         // Sprite isn't even in frame, don't draw anything
         if (rex < 0 || rsx > self.width as i64) && (rey < 0 || rsy > self.height as i64) { return; }
@@ -649,13 +730,16 @@ impl Rasterizer {
         let cmtx_inv = cmtx.clone().inv();
 
 		// We can finally draw!
-		// An added 8 pixel boundry is created due to a bug(?) that clips the image drawing too early depending on rotation.
         for ly in rsy..rey {
             for lx in rsx..rex {
                 // We have to use the inverted compound matrix (cmtx_inv) in order to get the correct pixel data from the image.
                 let ip: Vector2 = cmtx_inv.forward(Vector2::new(lx as f64, ly as f64));
-                let color: Color = image.pget(ip.x as i64, ip.y as i64);
+
+                // Ceil the transformed pixel positions to fix the colot pulling
+                let color: Color = image.pget(f64::ceil(ip.x) as i64, f64::ceil(ip.y) as i64);
+
                 // We skip drawing entirely if the alpha is zero.
+                // Otherwise leaves weird grey box
                 if color.a <= 0 { continue; }
                 self.pset(lx as i64, ly as i64, color);
             }
@@ -725,183 +809,6 @@ impl Rasterizer {
             self.pline(x1, y1, x3, y3, color);
             self.pline(x2, y2, x3, y3, color);
         }
-    }
-
-
-    /// Untested but comes from OneLoneCoders 3D Software Rendering series. Some help would be wonderful, I'm still very confused.
-    pub fn ptritex(&mut self, image: &Rasterizer, x1: i64, y1: i64, u1: f64, v1: f64, w1: f64,
-        x2: i64, y2: i64, u2: f64, v2: f64, w2: f64,
-        x3: i64, y3: i64, u3: f64, v3: f64, w3: f64)                                        
-    {
-
-            // We need to put all this stuff into local scope so it doesn't break
-            let mut x1: i64 = x1;
-            let mut y1: i64 = y1;
-            let mut u1: f64 = u1;
-            let mut v1: f64 = v1;
-            let mut w1: f64 = w1;
-
-            let mut x2: i64 = x2;
-            let mut y2: i64 = y2;
-            let mut u2: f64 = u2;
-            let mut v2: f64 = v2;
-            let mut w2: f64 = w2;
-
-            let mut x3: i64 = x3;
-            let mut y3: i64 = y3;
-            let mut u3: f64 = u3;
-            let mut v3: f64 = v3;
-            let mut w3: f64 = w3;
-
-
-            if y2 < y1 {
-                std::mem::swap(&mut y1, &mut y2);
-                std::mem::swap(&mut x1, &mut x2);
-                std::mem::swap(&mut u1, &mut u2);
-                std::mem::swap(&mut v1, &mut v2);
-                std::mem::swap(&mut w1, &mut w2);
-            }
-            if y3 < y1 {
-                std::mem::swap(&mut y1, &mut y3);
-                std::mem::swap(&mut x1, &mut x3);
-                std::mem::swap(&mut u1, &mut u3);
-                std::mem::swap(&mut v1, &mut v3);
-                std::mem::swap(&mut w1, &mut w3);
-            }
-            if y3 < y2 {
-                std::mem::swap(&mut y2, &mut y3);
-                std::mem::swap(&mut x2, &mut x3);
-                std::mem::swap(&mut u2, &mut u3);
-                std::mem::swap(&mut v2, &mut v3);
-                std::mem::swap(&mut w2, &mut w3);
-            }
-
-            let mut dy1: i64 = y2 - y1;
-            let mut dx1: i64 = x2 - x1;
-            let mut dv1: f64 = v2 - v1;
-            let mut du1: f64 = u2 - u1;
-            let mut dw1: f64 = w2 - w1;
-            let mut dy2: i64 = y3 - y1;
-            let mut dx2: i64 = x3 - x1;
-            let mut du2: f64 = u3 - u1;
-            let mut dv2: f64 = v3 - v1;
-            let mut dw2: f64 = u3 - u1;
-            let mut sdw2: f64 = w3 - w1;
-
-            let mut tex_u: f64 = 0.0;
-            let mut tex_v: f64 = 0.0;
-            let mut tex_w: f64 = 0.0;
-
-            let mut dax_step: f64 = 0.0;
-            let mut dbx_step: f64 = 0.0;
-            let mut du1_step: f64 = 0.0;
-            let mut dv1_step: f64 = 0.0;
-            let mut du2_step: f64 = 0.0;
-            let mut dv2_step: f64 = 0.0;
-            let mut dw1_step: f64 = 0.0;
-            let mut dw2_step: f64 = 0.0;
-
-            if dy1 > 0 { dax_step = dx1 as f64  / dy1.abs() as f64; }
-            if dy2 > 0 { dbx_step = dx2 as f64  / dy2.abs() as f64; }
-            if dy1 > 0 { du1_step = du1 as f64  / dy1.abs() as f64; }
-            if dy1 > 0 { dv1_step = dv1 as f64  / dy1.abs() as f64; }
-            if dy1 > 0 { dw1_step = dw1 as f64  / dy1.abs() as f64; }
-            if dy2 > 0 { du2_step = du2 as f64  / dy2.abs() as f64; }
-            if dy2 > 0 { dv2_step = dv2 as f64  / dy2.abs() as f64; }
-            if dy2 > 0 { dw2_step = dw2 as f64  / dy2.abs() as f64; }
-             // Drawing top half of triangle
-            if dy1 > 0 {
-                for i in y1..y2 {
-                    let mut ax: i64 = (x1 as f64 + (i - y1) as f64 * dax_step) as i64;
-                    let mut bx: i64 = (x1 as f64 + (i - y1) as f64 * dbx_step) as i64;
-                    let mut tex_su: f64 = u1 as f64 + (i - y1) as f64 * du1_step;
-                    let mut tex_sv: f64 = v1 as f64 + (i - y1) as f64 * dv1_step;
-                    let mut tex_sw: f64 = w1 as f64 + (i - y1) as f64 * dw1_step;
-                    let mut tex_eu: f64 = u1 as f64 + (i - y1) as f64 * du2_step;
-                    let mut tex_ev: f64 = v1 as f64 + (i - y1) as f64 * dv2_step;
-                    let mut tex_ew: f64 = w1 as f64 + (i - y1) as f64 * dw2_step;
-                    if ax > bx {
-                        std::mem::swap(&mut ax, &mut bx);
-                        std::mem::swap(&mut tex_su, &mut tex_eu);
-                        std::mem::swap(&mut tex_sv, &mut tex_ev);
-                        std::mem::swap(&mut tex_sw, &mut tex_ew);
-                    }
-
-                    tex_u = tex_su;
-                    tex_v = tex_sv;
-                    tex_w = tex_sw;
-
-                    let tstep: f64 = 1.0 / (bx - ax) as f64;
-                    let mut t: f64 = 0.0;
-                    for j in ax..bx {
-                        tex_u = (1.0 - t) * tex_su + t * tex_eu;
-                        tex_v = (1.0 - t) * tex_sv + t * tex_ev;
-                        tex_w = (1.0 - t) * tex_sw + t * tex_ew;
-                        //if tex_w > self.dget(j, i) {
-                            let px: i64 = (tex_u / tex_w) as i64;
-                            let py: i64 = (tex_v / tex_w) as i64;
-                            let color = image.pget(px, py);
-
-                            self.pset(j as i64, i as i64, color);
-                            //self.dset(j, i, tex_w);
-                        //}
-                        t += tstep;
-                    }
-                }
-            }
-
-            // Drawing bottom half of triangle
-            dy1 = y3 - y2;
-            dx1 = x3 - x2;
-            dv1 = v3 - v2;
-            du1 = u3 - u2;
-            dw1 = w3 - w2;
-            if dy1 > 0 { dax_step = dx1 as f64 / dy1.abs() as f64; }
-            if dy2 > 0 { dbx_step = dx2 as f64 / dy2.abs() as f64; }
-
-            du1_step = 0.0;
-            dv1_step = 0.0;
-
-            if dy1 > 0 { du1_step = du1 / dy1.abs() as f64; }
-            if dy1 > 0 { dv1_step = dv1 / dy1.abs() as f64; }
-            if dy1 > 0 { dw1_step = dw1 / dy1.abs() as f64; }
-            if dy1 > 0 {
-                for i in y2..y3 {
-                    let mut ax: i64 = ((x2 as f64 + (i - y2) as f64) * dax_step) as i64;
-                    let mut bx: i64 = ((x1 as f64 + (i - y1) as f64) * dbx_step) as i64;
-                    let mut tex_su: f64 = u2 + ((i - y2) as f64) * du1_step;
-                    let mut tex_sv: f64 = v2 + ((i - y2) as f64) * dv1_step;
-                    let mut tex_sw: f64 = w2 + ((i - y2) as f64) * dw1_step;
-                    let mut tex_eu: f64 = u1 + ((i - y1) as f64) * du2_step;
-                    let mut tex_ev: f64 = v1 + ((i - y1) as f64) * dv2_step;
-                    let mut tex_ew: f64 = w1 + ((i - y1) as f64) * dw2_step;
-                    if ax > bx {
-                        std::mem::swap(&mut ax, &mut bx);
-                        std::mem::swap(&mut tex_su, &mut tex_eu);
-                        std::mem::swap(&mut tex_sv, &mut tex_ev);
-                        std::mem::swap(&mut tex_sw, &mut tex_ew);
-                    }
-                    tex_u = tex_su;
-                    tex_v = tex_sv;
-                    tex_w = tex_sw;
-                    let tstep: f64 = 1.0 / (bx - ax) as f64;
-                    let mut t: f64 = 0.0;
-                    for j in ax..bx {
-                        tex_u = (1.0 - t) * tex_su + t * tex_eu;
-                        tex_v = (1.0 - t) * tex_sv + t * tex_ev;
-                        tex_w = (1.0 - t) * tex_sw + t * tex_ew;
-                        //if tex_w > self.dget(j, i) {
-                            let px: i64 = (tex_u / tex_w) as i64;
-                            let py: i64 = (tex_v / tex_w) as i64;
-                            let color = image.pget(px, py);
-
-                            self.pset(j as i64, i as i64, color);
-                            //self.dset(j, i, tex_w);
-                        //}
-                        t += tstep;
-                    }
-                }
-            }
     }
 
     /// Draws a quadratic beizer curve onto the screen.
