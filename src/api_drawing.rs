@@ -71,7 +71,15 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
         rst.borrow_mut().set_draw_mode(DrawMode::Multiply);
         Ok(())
     } ).unwrap();
-    let _ = lua.globals().set("set_draw_mode_subtraction", fn_set_draw_mode_multiply);
+    let _ = lua.globals().set("set_draw_mode_multiply", fn_set_draw_mode_multiply);
+
+    // Draw Mode: Force Tint //
+    let rst = rasterizer.clone();
+    let fn_set_draw_mode_force_tint = lua.create_function(move |_, ()| {
+        rst.borrow_mut().set_draw_mode(DrawMode::ForceTint);
+        Ok(())
+    } ).unwrap();
+    let _ = lua.globals().set("set_draw_mode_force_tint", fn_set_draw_mode_force_tint);
 
     // Clear //
     let rst = rasterizer.clone();
@@ -100,7 +108,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     // Set Opacity //
     let rst = rasterizer.clone();
     let fn_set_opacity = lua.create_function(move |_, opacity: f64| {
-        let opacity: u8 = f64::clamp(opacity * 255.0, 0.0, 255.0) as u8;
+        let opacity: u8 = f64::clamp(opacity, 0.0, 255.0) as u8;
         rst.borrow_mut().set_opacity(opacity);
         Ok(())
     } ).unwrap();
@@ -130,13 +138,13 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     } ).unwrap();
     let _ = lua.globals().set("set_camera_scale", fn_set_camera_scale);
 
-    // blit //
+    // blit sprite //
     let rst = rasterizer.clone();
     let imga = assets_images.clone();
     let fn_blit = lua.create_function(move |_, (name, x, y): (String, f64, f64)| {
         let img_result = imga.get(&name);
         if img_result.is_some() {
-            rst.borrow_mut().blit(&img_result.unwrap(), x as i64, y as i64);
+            rst.borrow_mut().blit_sprite(&img_result.unwrap(), x as i64, y as i64);
         }
         
         Ok(())

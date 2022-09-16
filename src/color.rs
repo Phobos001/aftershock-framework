@@ -147,6 +147,22 @@ impl Color {
 
 impl LuaUserData for Color {
 	fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+		methods.add_method("r", |_, c, ()| {
+			Ok(c.r)
+		});
+
+		methods.add_method("r", |_, c, ()| {
+			Ok(c.g)
+		});
+
+		methods.add_method("b", |_, c, ()| {
+			Ok(c.b)
+		});
+
+		methods.add_method("a", |_, c, ()| {
+			Ok(c.a)
+		});
+
 		methods.add_meta_function(LuaMetaMethod::Add, |_, (c1, c2): (Color, Color)| {
 			Ok(c1 + c2)
 		});

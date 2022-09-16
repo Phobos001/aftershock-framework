@@ -21,6 +21,7 @@ pub enum DrawMode {
     Subtraction,
     Multiply,
     Divide,
+    ForceTint,
     InvertedAlpha,
     InvertedOpaque,
     InvertedBgAlpha,
@@ -63,6 +64,17 @@ fn pset_opaque(rasterizer: &mut Rasterizer, idx: usize, color: Color) {
     rasterizer.color[idx + 1] = color.g;  // G
     rasterizer.color[idx + 2] = color.b;  // B
     rasterizer.color[idx + 3] = color.a;  // A
+    rasterizer.drawn_pixels_since_clear += 1;
+}
+
+/// Draw pixels if they are fully opaque, otherwise ignore them. Forces them to be the tint color.
+/// Useful for flashes or making masks
+fn pset_force_tint(rasterizer: &mut Rasterizer, idx: usize, color: Color) {
+    if color.a < 255 { return; }
+    rasterizer.color[idx + 0] = rasterizer.tint.r;  // R
+    rasterizer.color[idx + 1] = rasterizer.tint.g;  // G
+    rasterizer.color[idx + 2] = rasterizer.tint.b;  // B
+    rasterizer.color[idx + 3] = rasterizer.tint.a;  // A
     rasterizer.drawn_pixels_since_clear += 1;
 }
 
@@ -325,6 +337,7 @@ impl Rasterizer {
             DrawMode::Alpha                 => {self.pset_op = pset_alpha;},
             DrawMode::Addition              => {self.pset_op = pset_addition;},
             DrawMode::Multiply              => {self.pset_op = pset_multiply;}
+            DrawMode::ForceTint             => {self.pset_op = pset_force_tint;}
             DrawMode::InvertedAlpha         => {self.pset_op = pset_inverted_alpha;}
             DrawMode::InvertedOpaque        => {self.pset_op = pset_inverted_opaque;}
             DrawMode::InvertedBgOpaque      => {self.pset_op = pset_inverted_bg_opaque;}
@@ -340,7 +353,7 @@ impl Rasterizer {
 
     pub fn into_partitioned(&self) -> PartitionedRasterizer {
         let mut pr = PartitionedRasterizer::new(self.width, self.height, 0);
-        pr.rasterizer.blit(self, 0, 0);
+        pr.rasterizer.blit(self);
         pr
     }
 
@@ -358,7 +371,12 @@ impl Rasterizer {
         });
     }*/
 
-    pub fn blit(&mut self, src: &Rasterizer, x: i64, y: i64) {
+    pub fn blit(&mut self, src: &Rasterizer) {
+        let is_equal_size: bool = self.width == src.width && self.height == src.height;
+        if is_equal_size {
+            self.color.copy_from_slice(&src.color);
+            return;
+        }
 
         let stride = 4;
         // We blit these directly into the color buffer because otherwise we'd just be drawing everything over again and we don't have to worry about depth
@@ -368,49 +386,85 @@ impl Rasterizer {
         let extent_width: usize = src.offset_x + src.width;
         let extent_height: usize = src.offset_y + src.height;
     
-        let src_height: usize = src.height;
-        let dst_height: usize = self.height;
-    
         // If this goes out of bounds at all we should not draw it. Otherwise it WILL panic.
-        let not_too_big: bool = self.width * self.height < src.width * src.height;
-        let not_out_of_bounds: bool = extent_width > self.width || extent_height > self.height;
-        if not_too_big && not_out_of_bounds { 
+        let too_big: bool = self.width * self.height > src.width * src.height;
+        let out_of_bounds: bool = extent_width > self.width || extent_height > self.height;
+        if too_big || out_of_bounds { 
             println!("ERROR - FRAMEBUFFER BLIT: Does not fit inside target buffer!"); 
             return;
         }
     
         // Lets get an array of rows so we can blit them directly into the color buffer
-        let mut rows_src: Vec<&[u8]> = Vec::new();
+        let mut rows_src: Vec<&[u8]> = Vec::with_capacity(src.height);
     
         // Build a list of rows to blit to the screen.
         src.color.chunks_exact(src.width * stride).enumerate().for_each(|(_, row)| {
             rows_src.push(row);
         });
     
+        // Goes through each row of fbuf and split it twice into the slice that fits our rows_src.
+        self.color.chunks_exact_mut(self.width * stride).enumerate().for_each(|(i, row_dst)| {
+            // We need to cut the row into a section that we can just set equal to our row
+            // Make sure that we are actually in the bounds from our source buffer
+            if i >= src.offset_y as usize && i < (src.offset_y as usize + src.height) {
+                // [......|#######]
+                // Split at the stride distance to get the first end
+                let rightsect = row_dst.split_at_mut(src.offset_x * stride).1;
+
+                // [......|####|...]
+                // Get the second half but left
+                let section = rightsect.split_at_mut((extent_width - src.offset_x) * stride).0;
+
+                // I HAVE YOU NOW
+                section.copy_from_slice(rows_src[i-src.offset_y]);
+            }
+        });
+    }
+
+    pub fn blit_sprite(&mut self, src: &Rasterizer, x: i64, y: i64) {
         let is_equal_size: bool = self.width == src.width && self.height == src.height;
+        if is_equal_size {
+            self.color.copy_from_slice(&src.color);
+            return;
+        }
+
+        let stride = 4;
+        // We blit these directly into the color buffer because otherwise we'd just be drawing everything over again and we don't have to worry about depth
+        
+        // The color array is a 1D row of bytes, so we have to do this in sets of rows
+        // Make sure this actually fits inside the buffer
+        let extent_width: usize = x as usize + src.width;
+        let extent_height: usize = y as usize + src.height;
+    
+        // If this goes out of bounds at all we should not draw it. Otherwise it WILL panic.
+        let out_of_bounds: bool = extent_width > self.width || extent_height > self.height || x < 0 || y < 0;
+        if out_of_bounds { 
+            return;
+        }
+    
+        // Lets get an array of rows so we can blit them directly into the color buffer
+        let mut rows_src: Vec<&[u8]> = Vec::with_capacity(src.height);
+    
+        // Build a list of rows to blit to the screen.
+        src.color.chunks_exact(src.width * stride).enumerate().for_each(|(_, row)| {
+            rows_src.push(row);
+        });
     
         // Goes through each row of fbuf and split it twice into the slice that fits our rows_src.
         self.color.chunks_exact_mut(self.width * stride).enumerate().for_each(|(i, row_dst)| {
-            // if i >= dst_height { return; } // Never happens?
-            if i >= src.offset_y && i < src.offset_y + src_height { 
-                if is_equal_size {
-                    row_dst.copy_from_slice(rows_src[i]);
-                } else {
-                    // We need to cut the row into a section that we can just set equal to our row
-                    // Make sure that we are actually in the bounds from our source buffer
-                    if i >= src.offset_y && i < (src.offset_y + rows_src.len()) {
-                        // [......|#######]
-                        // Split at the stride distance to get the first end
-                        let rightsect = row_dst.split_at_mut(src.offset_x * stride).1;
-        
-                        // [......|####|...]
-                        // Get the second half but left
-                        let section = rightsect.split_at_mut((extent_width - src.offset_x) * stride).0;
-        
-                        // I HAVE YOU NOW
-                        section.copy_from_slice(rows_src[i-src.offset_y]);
-                    }
-                }
+            // We need to cut the row into a section that we can just set equal to our row
+            // Make sure that we are actually in the bounds from our source buffer
+            if i >= y as usize as usize && i < (y as usize + src.height) {
+                // [......|#######]
+                // Split at the stride distance to get the first end
+                let rightsect = row_dst.split_at_mut(x as usize * stride).1;
+
+                // [......|####|...]
+                // Get the second half but left
+                let section = rightsect.split_at_mut((extent_width - x as usize) * stride).0;
+
+                // I HAVE YOU NOW
+                section.copy_from_slice(rows_src[i-y as usize]);
             }
         });
     }
@@ -735,7 +789,7 @@ impl Rasterizer {
                 // We have to use the inverted compound matrix (cmtx_inv) in order to get the correct pixel data from the image.
                 let ip: Vector2 = cmtx_inv.forward(Vector2::new(lx as f64, ly as f64));
 
-                // Ceil the transformed pixel positions to fix the colot pulling
+                // Ceil the transformed pixel positions to fix the colot pullingg
                 let color: Color = image.pget(f64::ceil(ip.x) as i64, f64::ceil(ip.y) as i64);
 
                 // We skip drawing entirely if the alpha is zero.

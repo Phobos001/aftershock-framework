@@ -297,7 +297,7 @@ pub fn main() {
                             let _ = canvas.window_mut().set_fullscreen(FullscreenType::Off);
                         },
                         EngineVideoMode::Exclusive => {
-                            let _ = canvas.window_mut().set_fullscreen(FullscreenType::True);
+                            let _ = canvas.window_mut().set_fullscreen(FullscreenType::Desktop);
                         },
                     }
                 }
