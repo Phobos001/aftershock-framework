@@ -18,7 +18,7 @@ pub fn register_audio_api(audio: SharedAudio, assets_sfx: SharedAudioWav, assets
         sfxa.insert(name, wav);
         Ok(())
     }).unwrap();
-    let _ = lua.globals().set("load_sfx", fn_load_sound);
+    let _ = lua.globals().set("load_sound", fn_load_sound);
 
     let sfxa = assets_sfx.clone();
     let fn_unload_sound = lua.create_function(move |_, name: String| {
@@ -26,7 +26,7 @@ pub fn register_audio_api(audio: SharedAudio, assets_sfx: SharedAudioWav, assets
         sfxa.remove(&name);
         Ok(())
     }).unwrap();
-    let _ = lua.globals().set("unload_sfx", fn_unload_sound);
+    let _ = lua.globals().set("unload_sound", fn_unload_sound);
 
     let soloud = audio.clone();
     let sfxa = assets_sfx.clone();
@@ -38,7 +38,7 @@ pub fn register_audio_api(audio: SharedAudio, assets_sfx: SharedAudioWav, assets
         }
         Ok(())
     }).unwrap();
-    let _ = lua.globals().set("sfx", fn_sfx);
+    let _ = lua.globals().set("play_sound", fn_sfx);
 
     // MUSIC //
     let musa = assets_mus.clone();
@@ -53,7 +53,7 @@ pub fn register_audio_api(audio: SharedAudio, assets_sfx: SharedAudioWav, assets
         musa.insert(name, wav);
         Ok(())
     }).unwrap();
-    let _ = lua.globals().set("load_mus", fn_load_mus);
+    let _ = lua.globals().set("load_music", fn_load_mus);
 
     let musa = assets_mus.clone();
     let fn_unload_sound = lua.create_function(move |_, name: String| {
@@ -61,7 +61,7 @@ pub fn register_audio_api(audio: SharedAudio, assets_sfx: SharedAudioWav, assets
         musa.remove(&name);
         Ok(())
     }).unwrap();
-    let _ = lua.globals().set("unload_mus", fn_unload_sound);
+    let _ = lua.globals().set("unload_music", fn_unload_sound);
 
     let soloud = audio.clone();
     let musa = assets_mus.clone();
@@ -73,5 +73,5 @@ pub fn register_audio_api(audio: SharedAudio, assets_sfx: SharedAudioWav, assets
         }
         Ok(())
     }).unwrap();
-    let _ = lua.globals().set("mus", fn_mus);
+    let _ = lua.globals().set("play_music", fn_mus);
 }

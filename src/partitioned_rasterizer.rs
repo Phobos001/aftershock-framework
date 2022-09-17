@@ -166,11 +166,7 @@ impl PartitionedRasterizer {
 	}
 
 	pub fn blit(&mut self, image: &Rasterizer, x: i64, y: i64) {
-		self.rasterizer.blit(image);
-	}
-
-	pub fn blit_sprite(&mut self, image: &Rasterizer, x: i64, y: i64) {
-		self.rasterizer.blit_sprite(image, x, y);
+		self.rasterizer.blit(image, x, y);
 	}
 
 	pub fn pset(&mut self, x: i64, y: i64, color: Color) {
@@ -212,7 +208,7 @@ impl PartitionedRasterizer {
 					let part_return = handle.join();
 					if part_return.is_ok() {
 						let part = part_return.unwrap();
-						self.rasterizer.blit(&part);
+						self.rasterizer.blit(&part, part.offset_x as i64, part.offset_y as i64);
 					} else {
 						println!("ERROR - THREAD PANIC: Partition failed in pcircle function!")
 					}
@@ -250,7 +246,7 @@ impl PartitionedRasterizer {
 					let part_return = handle.join();
 					if part_return.is_ok() {
 						let part = part_return.unwrap();
-						self.rasterizer.blit(&part);
+						self.rasterizer.blit(&part, part.offset_x as i64, part.offset_y as i64);
 					} else {
 						println!("ERROR - THREAD PANIC: Partition failed in pcircle function!")
 					}
@@ -293,7 +289,7 @@ impl PartitionedRasterizer {
 					let part_return = handle.join();
 					if part_return.is_ok() {
 						let part = part_return.unwrap();
-						self.rasterizer.blit(&part);
+						self.rasterizer.blit(&part, part.offset_x as i64, part.offset_y as i64);
 					} else {
 						println!("ERROR - THREAD PANIC: Partition failed in pimg function!")
 					}
@@ -345,7 +341,7 @@ impl PartitionedRasterizer {
 					let part_return = handle.join();
 					if part_return.is_ok() {
 						let part = part_return.unwrap();
-						self.rasterizer.blit(&part);
+						self.rasterizer.blit(&part, part.offset_x as i64, part.offset_y as i64);
 					} else {
 						println!("ERROR - THREAD PANIC: Partition failed in pimgmtx function!")
 					}

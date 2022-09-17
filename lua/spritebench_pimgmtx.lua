@@ -85,8 +85,8 @@ function _draw()
     
     local time_before = timestamp()
 
-	local camera_scale = 1.5 + sin(realtime * 0.5) * 0.5
-	local camera_rotation = sin(realtime * 0.25) * 0.1
+	local camera_scale = 2.0 + sin(realtime * 0.5) * 1.0
+	local camera_rotation = sin(realtime * 0.25) * 0.2
 
 	set_camera_scale(camera_scale, camera_scale)
 	set_camera_rotation(camera_rotation)

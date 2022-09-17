@@ -12,7 +12,7 @@ function _conf()
 end
 
 function _init()
-    randomize()
+    math.randomseed(os.time())
     
     race_time = 0.0
 
@@ -27,7 +27,7 @@ function _init()
     for i = 1, display_height, 1 do
         racers.x[i] = 0.0
         racers.y[i] = i
-        racers.color[i] = hsv(rand() * 360.0, 1.0, 1.0)
+        racers.color[i] = hsv(math.random() * 360.0, 1.0, 1.0)
     end
     print("Built " .. #racers.x .. " racers!")
 end
@@ -44,7 +44,7 @@ function _update(delta)
     local width = draw_width()
     if racing then
         for i = 1, height, 1 do
-            racers.x[i] = racers.x[i] + rand_range(0.0, 512.0) * delta
+            racers.x[i] = racers.x[i] + (math.random() * 512.0) * delta
             if racers.x[i] > width then
                 table.insert(winners, {id = racers.y[i], at = racers.x[i]})
             end

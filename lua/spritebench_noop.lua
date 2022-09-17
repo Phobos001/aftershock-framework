@@ -29,7 +29,7 @@ end
 function _conf()
     set_resolution(640, 360)
     set_fullscreen()
-	set_core_limit(0)
+	set_core_limit(0) -- Use all cores avalible on machine
 end
 
 function _init()
@@ -86,6 +86,7 @@ function _draw()
 		pimg("ball_sprite", balls[i].x, balls[i].y)
 	end
 
+	set_draw_mode_opaque()
     
     local time_after = timestamp()
 	draw_time_ms = math.ceil((time_after - time_before) * 10000.0) / 10.0

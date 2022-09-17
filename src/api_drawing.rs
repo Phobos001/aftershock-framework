@@ -144,7 +144,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     let fn_blit = lua.create_function(move |_, (name, x, y): (String, f64, f64)| {
         let img_result = imga.get(&name);
         if img_result.is_some() {
-            rst.borrow_mut().blit_sprite(&img_result.unwrap(), x as i64, y as i64);
+            rst.borrow_mut().blit(&img_result.unwrap(), x as i64, y as i64);
         }
         
         Ok(())

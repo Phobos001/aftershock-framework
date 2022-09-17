@@ -374,11 +374,11 @@ pub fn main() {
 
         let tiny_font: Font = Font {
             fontimg: tiny_font_img,
-            glyph_height: 5,
-            glyph_width: 5,
+            glyph_height: 10,
+            glyph_width: 10,
             glyph_spacing: 0,
             glyphidx_sizes: Vec::new(),
-            glyphidx: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!?*^&()[]<>-+=/\\\"'`~:;,.%abcdefghijklmnopqrstuvwxyz".to_string().chars().collect()
+            glyphidx: "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!?/\\@#$%^&*()[]_-+=\"';:".to_string().chars().collect()
         };
 
         let mut error_rast: Rasterizer = Rasterizer::new(512, 512);

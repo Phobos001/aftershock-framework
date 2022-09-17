@@ -1,0 +1,172 @@
+{
+
+	// Display API
+
+	"Set Resolution": {
+		"prefix": ["set_resolution"],
+		"body": ["set_resolution($1width, $2height)$0"],
+		"description": "Changes the internal draw resolution to the specified width and height."
+	},
+
+	"Set Windowed": {
+		"prefix": ["set_windowed"],
+		"body": ["set_windowed()$0"],
+		"description": "Sets the window to 'Windowed' mode."
+	},
+
+	"Set Fullscreen": {
+		"prefix": ["set_fullscreen"],
+		"body": ["set_fullscreen()$0"],
+		"description": "Sets the window to 'Fullscreen' mode. Borderless, drawn over the desktop."
+	},
+
+	"Set Fullscreen Exclusive": {
+		"prefix": ["set_exclusive"],
+		"body": ["set_exclusive()$0"],
+		"description": "Sets the window to 'Exclusive' mode. Draws directly to the monitor with blurry stretching, unless the resolution matches the monitor."
+	},
+
+	// Drawing API
+	"New Color RGB": {
+		"prefix": ["rgb"],
+		"body": ["rgb($1red, $2green, $3blue)$0"],
+		"description": "Creates a new color, using ranges between 0 and 255."
+	},
+
+	"New Color RGBA": {
+		"prefix": ["rgba"],
+		"body": ["rgba($1red, $2green, $3blue, $4alpha)$0"],
+		"description": "Creates a new color and sets the alpha channel, using ranges between 0 and 255."
+	},
+
+	"New Color HSV": {
+		"prefix": ["hsv"],
+		"body": ["hsv($1hue, $2saturation, $3value)$0"],
+		"description": "Creates a new color using Hue, Saturation, and Value. Hue takes a 360° angle value, while Saturation and Value take ranges between 0.0 and 1.0"
+	},
+
+	"Blit": {
+		"prefix": ["blit"],
+		"body": ["blit($1name, $2x, $3y)$0"],
+		"description": "Copies image memory onto the screen buffer directly, if it fits inside and it exists."
+	},
+	
+	"Pixel Set": {
+	  "prefix": ["pset"],
+	  "body": ["pset($1image_name, $2x_position, $3y_position)$0"],
+	  "description": "Draw a pixel to the screen. Will wrap around if not clamped to the screen boundries."
+	},
+
+	"Pixel Get": {
+		"prefix": ["pget"],
+		"body": ["pget($1image_name, $2x_position, $3y_position)$0"],
+		"description": "Collect a pixel from the screen. Does not wrap."
+	},
+
+	"Pixel Line": {
+		"prefix": ["pline"],
+		"body": ["pline($1x0, $2y0, $3x1, $4y1, $5color)$0"],
+		"description": "Draws a line on the screen with a given color."
+	},
+
+	"Pixel Rectangle": {
+		"prefix": ["prectangle"],
+		"body": ["prectangle($1is_filled, $2x, $3y, $4width, $5height, $6color)$0"],
+		"description": "[Parallel] Draws a rectangle on the screen with a given color, with an option to draw it completely solid"
+	},
+
+	"Pixel Circle": {
+		"prefix": ["pcircle"],
+		"body": ["pcircle($1is_filled, $2x_center, $3y_center, $4radius, $5color)$0"],
+		"description": "[Parallel] Draws a circle on the screen with a given color, with an option to draw it completely solid"
+	},
+
+	"Pixel Print": {
+		"prefix": ["pprint"],
+		"body": ["pprint($font_name, $text, $x, $y, $wrap_width, $7color)$0"],
+		"description": "Draws text directly on screen using a loaded font. Wrapping width is by screen size and not by text length."
+	},
+
+	"Pixel Beizer": {
+		"prefix": ["pbeizer"],
+		"body": ["pbeizer($1x0, $2y0, $3x1, $4y1, $5x2, $6y2, $7color)$0"],
+		"description": "Draws a beizer curve on the screen with a given color. Will draw the interpolated line between all three points."
+	},
+
+	"Pixel Image": {
+		"prefix": ["pimg"],
+		"body": ["pimg($1name, $2x, $3y)$0"],
+		"description": "[Parallel] Draws an image from memory at the X and Y coordinates provided, if it exists."
+	},
+
+	"Pixel Image Matrix": {
+		"prefix": ["pimgmtx"],
+		"body": ["pimgmtx($1name, $2x, $3y, $4rotation, $5scale_x, $6scale_y, $7offset_x, $8offset_y)$0"],
+		"description": "[Parallel] Draws a transformed image onto the screen, along with set camera transformations, if it exists."
+	},
+
+	// Image API
+
+	"New Image": {
+		"prefix": ["new_image"],
+		"body": ["new_image($1memory_name, $2width, $3height)$0"],
+		"description": "Creates a new, blank image in memory, with a name to access it later."
+	},
+
+	"Load Image": {
+		"prefix": ["load_image"],
+		"body": ["load_image($1memory_name, $2filepath)$0"],
+		"description": "Stores an image in memory, with a name to access it later."
+	},
+
+	"Unload Image": {
+		"prefix": ["unload_image"],
+		"body": ["unload_image($1memory_name)$0"],
+		"description": "Removes an image from memory with the given name, if it exists."
+	},
+
+	// Audio API
+	"Load Sound": {
+		"prefix": ["load_sound"],
+		"body": ["load_sound($1memory_name, $2filepath)$0"],
+		"description": "Loads a sound into memory, with a name to access it later."
+	},
+
+	"Unload Sound": {
+		"prefix": ["load_sound"],
+		"body": ["load_sound($1memory_name, $2filepath)$0"],
+		"description": "Removes the sound from memory with the given name, if it exists."
+	},
+
+	"Play Sound": {
+		"prefix": ["play_sound"],
+		"body": ["play_sound($1memory_name)$0"],
+		"description": "Plays the sound with the given name, if it exists."
+	},
+
+	"Load Music": {
+		"prefix": ["load_music"],
+		"body": ["load_music($1memory_name, $2filepath)$0"],
+		"description": "Loads a music track into memory, with a name to access it later."
+	},
+
+	"Unload Music": {
+		"prefix": ["unload_music"],
+		"body": ["unload_music($1memory_name)$0"],
+		"description": "Removes the music track from memory with the given name, if it exists."
+	},
+
+	// Input API
+
+	"Mouse X": {
+		"prefix": ["mouse_x"],
+		"body": ["mouse_x()$0"],
+		"description": "Returns the mouse's virtual X position."
+	},
+
+	"Mouse Y": {
+		"prefix": ["mouse_y"],
+		"body": ["mouse_y()$0"],
+		"description": "Returns the mouse's virtual Y position."
+	},
+}

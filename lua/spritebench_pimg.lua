@@ -75,7 +75,7 @@ end
 function _draw()
 	local set_tint = set_tint
 	local set_opacity = set_opacity
-	local pimgmtx = pimgmtx
+	local pimg = pimg
 	local sin = math.sin
     
     local time_before = timestamp()

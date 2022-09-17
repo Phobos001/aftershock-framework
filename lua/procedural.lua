@@ -13,6 +13,7 @@ function _conf()
     set_resolution(640, 360)
     set_fullscreen()
     set_core_limit(0) -- Parallel rendering only activates for large images
+    
 end
 
 function _init()
@@ -29,7 +30,7 @@ function _draw()
 
     clear()
     time_before = timestamp()
-    pimgmtx(name, mouse_x(), mouse_y(), realtime * 0.25, 1.0, 1.0, 0.5, 0.5)
+    pimgmtx(TEX_BRICK, mouse_x(), mouse_y(), realtime * 0.25, 1.0, 1.0, 0.5, 0.5)
     time_after = timestamp()
     pprint(font_tiny, "Cook time: " .. cook_time .. "ms", 0, 0)
     pprint(font_tiny, "Draw time: " .. math.ceil((time_after - time_before) * 10000.0) / 10.0 .. "ms", 0, 6)

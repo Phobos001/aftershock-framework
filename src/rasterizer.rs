@@ -1,11 +1,14 @@
 use rayon::prelude::*;
 
+use crate::color;
 use crate::color::*;
 use crate::partitioned_rasterizer::PartitionedRasterizer;
 use crate::vector2::*;
 use crate::matrix3::*;
 use crate::font::*;
 use crate::math::*;
+
+use mlua::prelude::*;
 
 // Draw Mode Definition
 pub type PSetOp = fn(&mut Rasterizer, usize, Color);
@@ -353,7 +356,7 @@ impl Rasterizer {
 
     pub fn into_partitioned(&self) -> PartitionedRasterizer {
         let mut pr = PartitionedRasterizer::new(self.width, self.height, 0);
-        pr.rasterizer.blit(self);
+        pr.rasterizer.blit(self, 0, 0);
         pr
     }
 
@@ -371,57 +374,7 @@ impl Rasterizer {
         });
     }*/
 
-    pub fn blit(&mut self, src: &Rasterizer) {
-        let is_equal_size: bool = self.width == src.width && self.height == src.height;
-        if is_equal_size {
-            self.color.copy_from_slice(&src.color);
-            return;
-        }
-
-        let stride = 4;
-        // We blit these directly into the color buffer because otherwise we'd just be drawing everything over again and we don't have to worry about depth
-        
-        // The color array is a 1D row of bytes, so we have to do this in sets of rows
-        // Make sure this actually fits inside the buffer
-        let extent_width: usize = src.offset_x + src.width;
-        let extent_height: usize = src.offset_y + src.height;
-    
-        // If this goes out of bounds at all we should not draw it. Otherwise it WILL panic.
-        let too_big: bool = self.width * self.height > src.width * src.height;
-        let out_of_bounds: bool = extent_width > self.width || extent_height > self.height;
-        if too_big || out_of_bounds { 
-            println!("ERROR - FRAMEBUFFER BLIT: Does not fit inside target buffer!"); 
-            return;
-        }
-    
-        // Lets get an array of rows so we can blit them directly into the color buffer
-        let mut rows_src: Vec<&[u8]> = Vec::with_capacity(src.height);
-    
-        // Build a list of rows to blit to the screen.
-        src.color.chunks_exact(src.width * stride).enumerate().for_each(|(_, row)| {
-            rows_src.push(row);
-        });
-    
-        // Goes through each row of fbuf and split it twice into the slice that fits our rows_src.
-        self.color.chunks_exact_mut(self.width * stride).enumerate().for_each(|(i, row_dst)| {
-            // We need to cut the row into a section that we can just set equal to our row
-            // Make sure that we are actually in the bounds from our source buffer
-            if i >= src.offset_y as usize && i < (src.offset_y as usize + src.height) {
-                // [......|#######]
-                // Split at the stride distance to get the first end
-                let rightsect = row_dst.split_at_mut(src.offset_x * stride).1;
-
-                // [......|####|...]
-                // Get the second half but left
-                let section = rightsect.split_at_mut((extent_width - src.offset_x) * stride).0;
-
-                // I HAVE YOU NOW
-                section.copy_from_slice(rows_src[i-src.offset_y]);
-            }
-        });
-    }
-
-    pub fn blit_sprite(&mut self, src: &Rasterizer, x: i64, y: i64) {
+    pub fn blit(&mut self, src: &Rasterizer, x: i64, y: i64) {
         let is_equal_size: bool = self.width == src.width && self.height == src.height;
         if is_equal_size {
             self.color.copy_from_slice(&src.color);
@@ -973,4 +926,21 @@ impl Rasterizer {
 
         return pixels;
     }
+}
+
+impl LuaUserData for Rasterizer {
+	fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
+		methods.add_method("get_width", |_, rasterizer, ()| {
+			Ok(rasterizer.width)
+		});
+
+        methods.add_method("get_height", |_, rasterizer, ()| {
+			Ok(rasterizer.height)
+		});
+
+        methods.add_method_mut("pset", |_, rasterizer, (x, y, color): (f64, f64, Color)| {
+            rasterizer.pset(x as i64, y as i64, color);
+			Ok(())
+		});
+	}
 }

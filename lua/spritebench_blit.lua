@@ -13,9 +13,9 @@ target_ms = 16.67 -- 60 FPS
 update_time_ms = 0.0
 draw_time_ms = 0.0
 
-TINY_FONT_GLYPHIDX = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!?*^&()[]<>-+=/\\\"'`~:;,.%abcdefghijklmnopqrstuvwxyz"
+TINY_FONT_GLYPHIDX = "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!?/\\@#$%^&*()[]_-+=\"';:."
 
-font_tiny = load_font("core/fonts/tiny_font.png", TINY_FONT_GLYPHIDX, 5, 5, -1)
+font_tiny = load_font("core/fonts/tiny_font10.png", TINY_FONT_GLYPHIDX, 10, 10, 0)
 
 balls = {}
 
@@ -38,7 +38,7 @@ end
 function _conf()
     set_resolution(640, 360)
     set_fullscreen()
-	set_core_limit(0)
+	set_core_limit(1) -- Blitting never triggers parallelism
 end
 
 function _init()
@@ -96,11 +96,12 @@ function _draw()
     local time_after = timestamp()
 	draw_time_ms = math.ceil((time_after - time_before) * 10000.0) / 10.0
 
-	
-
-	pprint(font_tiny, "Update time  : " .. update_time_ms .. "ms", 0, 0)
-    pprint(font_tiny, "Draw time    : " .. draw_time_ms .. "ms", 0, 6)
-	pprint(font_tiny, "Total balls  : " .. #balls, 0, 12)
+	-- Black boxes around text makes it easier to read, there's a lot going on
+	set_draw_mode_noop()
+	pprint(font_tiny, string.upper("Update time  : " .. update_time_ms .. "ms"), 0, 0)
+    pprint(font_tiny, string.upper("Draw time    : " .. draw_time_ms .. "ms"), 0, 12)
+	pprint(font_tiny, string.upper("Total balls  : " .. #balls), 0, 24)
+	set_draw_mode_opaque()
 
 	
 end

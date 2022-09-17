@@ -27,4 +27,4 @@ pub fn get_tiny_font() -> Rasterizer {
 }
 
 const ERROR_BG: &[u8] = include_bytes!("error_bg.png");
-const TINY_FONT: &[u8] = include_bytes!("tiny_font.png");
+const TINY_FONT: &[u8] = include_bytes!("tiny_font10.png");
