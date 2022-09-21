@@ -26,7 +26,7 @@ device_query = "1.1.1"
 soloud = "1.0.2"
 
 # Physics
-rapier2d-f64 = { version = "0.14.0", features = [ "simd-nightly", "serde-serialize" ] }
+rapier2d-f64 = { version = "0.14.0", features = ["enhanced-determinism", "serde-serialize" ] }
 
 # Pathfinding
 pathfinding = "3.0.13"
@@ -52,4 +52,3 @@ x86_64-pc-windows-msvc = { triplet = "x64-windows-static-md" }
 lto = true
 codegen-units = 1
 opt-level = 3
-panic = "abort"

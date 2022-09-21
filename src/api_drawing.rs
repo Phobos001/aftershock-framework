@@ -213,17 +213,18 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
     } ).unwrap();
     let _ = lua.globals().set("pimg", fn_pimg);
 
-    // pimgrect //
-    /*let assets = assets_image.clone();
     let rst = rasterizer.clone();
-    engine.register_fn("pimgrect", move |image_name: ImmutableString, x: i64, y: i64, rx: i64, ry: i64, rw: i64, rh: i64| {
-        
-        let res = assets.borrow();
-        if res.contains_key(&image_name) {
-            let image = &*res.get(&image_name).unwrap();
-            rst.borrow().pimgrect(image, x, y, rx, ry, rw, rh);
+    let imga = assets_images.clone();
+    let fn_pimgrect = lua.create_function(move |_, (name, x, y, image_x, image_y, image_width, image_height ): (String, f64, f64, f64, f64, f64, f64)| {
+        //let imga_ref = imga.get();
+        let img_result = imga.get(&name);
+        if img_result.is_some() {
+            rst.borrow_mut().pimgrect(&img_result.unwrap(), x as i64, y as i64, image_x as i64, image_y as i64, image_width as i64, image_height as i64);
         }
-    } ); */
+        
+        Ok(())
+    } ).unwrap();
+    let _ = lua.globals().set("pimgrect", fn_pimgrect);
 
     // pimgmtx //
     let imga = assets_images.clone();

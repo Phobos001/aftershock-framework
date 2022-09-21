@@ -18,6 +18,7 @@ end
 
 function _init()
     create_brick_texture(true)
+    
 end
 
 function _update(delta)

@@ -1,6 +1,7 @@
 function _conf()
-   set_resolution(960, 540) 
-   set_windowed()
+	set_window_title("Noisebench")
+   	set_resolution(960, 540) 
+   	set_windowed()
 end
 
 function _init()

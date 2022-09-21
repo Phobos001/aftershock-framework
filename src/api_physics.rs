@@ -1,20 +1,34 @@
-use rapier2d_f64::prelude::*;
-use rapier2d_f64::na as na;
+use crate::api_shareables::SharedPhysics2D;
 
-pub struct RapierWorld2D {
-	pub rigid_body_set: RigidBodySet,
-	pub collider_set: ColliderSet,
+use crate::api_shareables::*;
+use mlua::prelude::*;
 
-	// Scaling factor to make physics calculations easier
-	pub pixels_per_meter: f64,
+pub fn register_physics2d_api(share_physics: SharedPhysics2D, lua: &Lua) {
+	let phys = share_physics.clone();
+    let fn_add_static_rect = lua.create_function( move |_, (x, y, width, height): (f64, f64, f64, f64)| {
+        phys.borrow_mut().add_static_rect(x, y, width, height);
+		Ok(())
+    }).unwrap();
+    let _ = lua.globals().set("phys_add_static_rect", fn_add_static_rect);
 
-	pub gravity: na::Vector2<f64>,
-	pub integration_parameters: IntegrationParameters,
-	pub physics_pipeline: PhysicsPipeline,
-	pub island_manager: IslandManager,
-	pub broad_phase: BroadPhase,
-	pub narrow_phase: NarrowPhase,
-	pub impulse_joint_set: ImpulseJointSet,
-	pub multibody_joint_set: MultibodyJointSet,
-	pub ccd_solver: CCDSolver,
+	let phys = share_physics.clone();
+    let fn_add_static_rect_name = lua.create_function( move |_, (name, x, y, width, height): (String, f64, f64, f64, f64)| {
+        phys.borrow_mut().add_static_rect_handle(name, x, y, width, height);
+		Ok(())
+    }).unwrap();
+    let _ = lua.globals().set("phys_add_static_rect_name", fn_add_static_rect_name);
+
+	let phys = share_physics.clone();
+    let fn_add_dynamic_rect = lua.create_function( move |_, (x, y, width, height): (f64, f64, f64, f64)| {
+        phys.borrow_mut().add_static_rect(x, y, width, height);
+		Ok(())
+    }).unwrap();
+    let _ = lua.globals().set("phys_add_dynamic_rect", fn_add_dynamic_rect);
+
+	let phys = share_physics.clone();
+    let fn_add_dynamic_rect_name = lua.create_function( move |_, (name, x, y, width, height): (String, f64, f64, f64, f64)| {
+        phys.borrow_mut().add_static_rect_handle(name, x, y, width, height);
+		Ok(())
+    }).unwrap();
+    let _ = lua.globals().set("phys_add_dynamic_rect_name", fn_add_dynamic_rect_name);
 }

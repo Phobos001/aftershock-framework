@@ -2,6 +2,12 @@
 
 	// Display API
 
+	"Set Title": {
+		"prefix": ["set_window_title"],
+		"body": ["set_window_title($1name)$0"],
+		"description": "Changes the window title to the provided name."
+	},
+
 	"Set Resolution": {
 		"prefix": ["set_resolution"],
 		"body": ["set_resolution($1width, $2height)$0"],
@@ -99,6 +105,12 @@
 		"description": "[Parallel] Draws an image from memory at the X and Y coordinates provided, if it exists."
 	},
 
+	"Pixel Image": {
+		"prefix": ["pimgrect"],
+		"body": ["pimgrect($1name, $2x, $3y, $4image_x, $5image_y, $6image_width, $7image_height)$0"],
+		"description": "[Parallel] Draws an image from memory at the X and Y coordinates provided, if it exists."
+	},
+
 	"Pixel Image Matrix": {
 		"prefix": ["pimgmtx"],
 		"body": ["pimgmtx($1name, $2x, $3y, $4rotation, $5scale_x, $6scale_y, $7offset_x, $8offset_y)$0"],
@@ -169,4 +181,26 @@
 		"body": ["mouse_y()$0"],
 		"description": "Returns the mouse's virtual Y position."
 	},
+
+	"Is Control Down": {
+		"prefix": ["is_control_down"],
+		"body": ["is_control_down($1control_bit)$0"],
+		"description": "Returns true every frame if the bound key is being held."
+	},
+
+	"Is Control Pressed": {
+		"prefix": ["is_control_pressed"],
+		"body": ["is_control_pressed($1control_bit)$0"],
+		"description": "Returns true once if the bound key has been pressed this frame."
+	},
+
+	"Is Control Released": {
+		"prefix": ["is_control_released"],
+		"body": ["is_control_released($1control_bit)$0"],
+		"description": "Returns true once if the bound key has been released this frame."
+	},
+
+	// Physics API
+
+
 }

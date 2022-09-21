@@ -16,22 +16,23 @@ use crate::controls::ControlData;
 use crate::VideoData;
 use crate::EngineVideoMode;
 
-use crate::rasterizer::Rasterizer;
+use crate::rapier2d_wrap::RapierWorld2D;
 use crate::partitioned_rasterizer::*;
 
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::sync::Arc;
 
 pub struct LuaScript {
-    pub window_title:   String,
     pub video_data:     SharedVideoData,
 
     pub lua:            mlua::Lua,
 
     pub controls:       SharedControlData,
     pub rasterizer:     SharedRasterizer,
+    pub physics:        SharedPhysics2D,
+
     pub audio:          SharedAudio,
+    pub audio_handles:  SharedAudioHandle,
 
     pub assets_sfx:     SharedAudioWav,
     pub assets_mus:     SharedAudioWavStream,
@@ -39,7 +40,7 @@ pub struct LuaScript {
 }
 
 impl LuaScript {
-    pub fn new(title: String, script: String) -> Result<LuaScript, String> {
+    pub fn new(script: String) -> Result<LuaScript, String> {
         let lua = Lua::new();
 
         // Fatal Error if Audio API cannot init.
@@ -50,19 +51,23 @@ impl LuaScript {
         }
 
         let video_data: SharedVideoData         = Rc::new(RefCell::new(
-            VideoData { screen_resolution: (384, 216), stretch_fill: false, mode: EngineVideoMode::Windowed})
+            VideoData { screen_resolution: (384, 216), window_title: "Aftershock Framework!".to_string(), stretch_fill: false, mode: EngineVideoMode::Windowed})
         );
 
         let rasterizer: SharedRasterizer        = Rc::new(RefCell::new(PartitionedRasterizer::new(384, 216, 0)));
         let controls:   SharedControlData       = Rc::new(RefCell::new(ControlData::new()));
 
-        let assets_sfx: SharedAudioWav          = Arc::new(DashMap::new());
-        let assets_mus: SharedAudioWavStream    = Arc::new(DashMap::new());
-        let assets_img: SharedImages            = Arc::new(DashMap::new());
+        let physics:    SharedPhysics2D         = Rc::new(RefCell::new(RapierWorld2D::new(1.0 / 60.0)));
 
-        let soloud: SharedAudio = Arc::new(soloud_result.unwrap());
+        let audio_handles: SharedAudioHandle    = Rc::new(DashMap::new());
+        let assets_sfx: SharedAudioWav          = Rc::new(DashMap::new());
+        let assets_mus: SharedAudioWavStream    = Rc::new(DashMap::new());
 
-        register_audio_api(soloud.clone(), assets_sfx.clone(), assets_mus.clone(), &lua);
+        let assets_img: SharedImages            = Rc::new(DashMap::new());
+
+        let soloud: SharedAudio = Rc::new(soloud_result.unwrap());
+
+        register_audio_api(soloud.clone(), audio_handles.clone(), assets_sfx.clone(), assets_mus.clone(), &lua);
         register_color(&lua);
         register_display_api(rasterizer.clone(), video_data.clone(), &lua);
         register_draw_api(assets_img.clone(), rasterizer.clone(), &lua);
@@ -78,7 +83,7 @@ impl LuaScript {
             let e = test_file.err().unwrap();
             Err(format!("Lua: file failed to load! Error: {}", e))
         } else {
-            Ok(LuaScript { window_title: title, video_data, lua, controls, rasterizer, audio: soloud, assets_sfx, assets_mus, assets_img})
+            Ok(LuaScript {video_data, lua, controls, rasterizer, physics, audio: soloud, audio_handles, assets_sfx, assets_mus, assets_img})
         }
     }
 

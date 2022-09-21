@@ -1,6 +1,8 @@
-use device_query::{DeviceQuery, DeviceState, MouseState, Keycode};
+use device_query::{DeviceQuery, DeviceState, MouseState};
+use sdl2::keyboard::Keycode;
 use crate::vector2::*;
 
+#[derive(Debug, Clone, Copy)]
 pub enum MouseButton {
     None,
     Left,
@@ -14,6 +16,7 @@ pub enum MouseButton {
 pub struct KeyBind {
     pub keybit: u8,
     pub keycode: Keycode,
+    pub mouse_button: MouseButton,
 }
 
 pub struct ControlData {
@@ -25,10 +28,10 @@ pub struct ControlData {
 
     pub mouse: Vector2,
     pub mouse_delta: Vector2,
+    pub mouse_boundries: Vector2,
 }
 
 impl ControlData {
-    pub const CONSOLE: u8       = 122;
     pub const MOUSE_LEFT: u8    = 123;
     pub const MOUSE_RIGHT: u8   = 124;
     pub const MOUSE_MIDDLE: u8  = 125;
@@ -37,7 +40,7 @@ impl ControlData {
 
     pub fn new() -> ControlData {
         ControlData {
-            binds: vec![KeyBind { keybit: ControlData::CONSOLE, keycode: Keycode::Grave }; 1],
+            binds: Vec::new(),
             controls: 0,
             controls_last: 0,
 
@@ -45,6 +48,7 @@ impl ControlData {
 
             mouse: Vector2::ZERO,
             mouse_delta: Vector2::ZERO,
+            mouse_boundries: Vector2::new(512.0, 512.0),
         }
     }
 
@@ -59,49 +63,66 @@ impl ControlData {
     pub fn is_control_released(&self, control: u8) -> bool {
         (self.controls_last & (1 << control) != 0) && !(self.controls & (1 << control) != 0)
     }
+    
+    pub fn set_key_bind(&mut self, keybit: u8, keycode: Keycode) {
+        self.binds.push(KeyBind{ keybit, keycode, mouse_button: MouseButton::None });
+    }
+
+    pub fn set_key_bind_from_string(&mut self, keybit: u8, keyname: &str) {
+        let keycode_opt = Keycode::from_name(keyname);
+        if keycode_opt.is_some() {
+            self.binds.push(KeyBind{ keybit, keycode: keycode_opt.unwrap(), mouse_button: MouseButton::None });
+        } else {
+            println!("ERROR - INPUT: Keycode '{}' not found in SDL enum!", keyname);
+        }
+        
+    }
 
     pub fn update_mouse_delta(&mut self, xrel: f64, yrel: f64) {
         self.mouse_delta = Vector2::new(xrel as f64, yrel as f64);
     }
 
-    pub fn update_controls(&mut self, screen_width: usize, screen_height: usize, video_width: usize, video_height: usize, fullscreen: bool, sdl_x: f64, sdl_y: f64) {
-        let mouse_state: MouseState = self.device_state.get_mouse();
+    pub fn update_mouse_boundries(&mut self, width: f64, height: f64) {
+        self.mouse_boundries.x = width;
+        self.mouse_boundries.y = height;
+    }
 
-        if fullscreen {
-            let width_mul = video_width as f64 / screen_width as f64;
-            let height_mul = video_height as f64 / screen_height as f64;
+    pub fn update_controls(&mut self, mouse_state: sdl2::mouse::MouseState, keyboard_state: sdl2::keyboard::KeyboardState) {
+        let dq_mouse_state: MouseState = self.device_state.get_mouse();
 
-            self.mouse = Vector2::new(mouse_state.coords.0 as f64 * width_mul, mouse_state.coords.1 as f64 * height_mul);
-            //self.mouse = Vector2::new(sdl_x, sdl_y);
-        } else {
-            self.mouse = Vector2::new(sdl_x, sdl_y);
-        }
+        let new_mouse_position_dx = mouse_state.x() as f64 - self.mouse.x;
+        let new_mouse_position_dy = mouse_state.y() as f64 - self.mouse.y;
+        
+        self.mouse += Vector2::new(new_mouse_position_dx, new_mouse_position_dy) * 0.5;
+        self.mouse.x = self.mouse.x.clamp(0.0, self.mouse_boundries.x);
+        self.mouse.y = self.mouse.y.clamp(0.0, self.mouse_boundries.y);
         
 
-        if mouse_state.button_pressed[0] {
-            self.controls |= 1 << ControlData::MOUSE_LEFT;
-        }
 
-        if mouse_state.button_pressed[1] {
-            self.controls |= 1 << ControlData::MOUSE_RIGHT;
-        }
-
-        if mouse_state.button_pressed[2] {
-            self.controls |= 1 << ControlData::MOUSE_MIDDLE;
-        }
-
-        if mouse_state.button_pressed[3] {
-            self.controls |= 1 << ControlData::MOUSE_X1;
-        }
-
-        if mouse_state.button_pressed[4] {
-            self.controls |= 1 << ControlData::MOUSE_X2;
-        }
-
-        let keys: Vec<Keycode> = self.device_state.get_keys();
+        let keys: Vec<Keycode> = keyboard_state.pressed_scancodes().filter_map(Keycode::from_scancode).collect();
 
         self.controls_last = self.controls;
         self.controls = 0;
+
+        if mouse_state.left() {
+            self.controls |= 1 << ControlData::MOUSE_LEFT;
+        }
+
+        if mouse_state.right() {
+            self.controls |= 1 << ControlData::MOUSE_RIGHT;
+        }
+
+        if mouse_state.middle() {
+            self.controls |= 1 << ControlData::MOUSE_MIDDLE;
+        }
+
+        if mouse_state.x1() {
+            self.controls |= 1 << ControlData::MOUSE_X1;
+        }
+
+        if mouse_state.x2() {
+            self.controls |= 1 << ControlData::MOUSE_X2;
+        }
         
         for key in keys.iter() {
             for bind in &self.binds {

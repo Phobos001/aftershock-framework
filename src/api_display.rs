@@ -10,6 +10,13 @@ use crate::api_shareables::*;
 
 pub fn register_display_api(rasterizer: SharedRasterizer, video_data: SharedVideoData, lua: &Lua) {
 
+    let vid = video_data.clone();
+    let fn_display_set_window_title = lua.create_function(move |_, name: String| {
+        vid.borrow_mut().window_title = name;
+        Ok(())
+    }).unwrap();
+    let _ = lua.globals().set("set_window_title", fn_display_set_window_title);
+
     let rst = rasterizer.clone();
     let fn_display_set_resolution = lua.create_function(move |_, (width, height) :(f64, f64)| {
         rst.borrow_mut().resize(width as usize, height as usize);

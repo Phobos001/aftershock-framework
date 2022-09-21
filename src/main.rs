@@ -14,7 +14,10 @@ mod font;
 mod rasterizer;
 mod partitioned_rasterizer;
 
+// Physics
+mod rapier2d_wrap;
 
+// Lua API
 mod api_shareables;
 mod api_audio;
 mod api_color;
@@ -28,7 +31,22 @@ mod api_profiling;
 
 mod error_data;
 
+const CURSOR_IMAGE: &[u8] = include_bytes!("cursor.png");
 
+fn get_cursor_img() -> Rasterizer {
+    use rgb::ComponentBytes;
+    let decode_result = lodepng::decode32(CURSOR_IMAGE);
+    if decode_result.is_ok() {
+        let img = decode_result.unwrap();
+        let mut r = Rasterizer::new(img.width, img.height);
+        r.color = img.buffer.as_bytes().to_vec();
+        r
+    } else {
+        panic!("ERROR - MAIN: CURSOR_IMAGE cannot be decoded!");
+    }
+}
+
+use crate::color::Color;
 use crate::font::Font;
 use crate::lua::LuaScript;
 use crate::rasterizer::Rasterizer;
@@ -60,7 +78,7 @@ pub struct TimeData {
 
 pub struct VideoData {
     pub screen_resolution: (usize, usize),
-
+    pub window_title:   String,
     pub mode: EngineVideoMode,
     pub stretch_fill: bool,
 }
@@ -94,7 +112,7 @@ impl AftershockEngine {
             return Err("ERROR: Game not found! Use \"--game <game_path>.lua\" to load your game!\nFor example, \"--game src/main.lua\" or \"--game tools/level_editor.lua\"".to_string());
         }
 
-        let lua_global_result =  LuaScript::new("Aftershock Framework!".to_string(), main_lua);
+        let lua_global_result =  LuaScript::new(main_lua);
         if lua_global_result.is_ok() {
             Ok(AftershockEngine {
                 lua_global: lua_global_result.unwrap(),
@@ -108,7 +126,8 @@ impl AftershockEngine {
     
                 video: VideoData {
                     screen_resolution,
-                    mode: EngineVideoMode::Fullscreen,
+                    window_title: "".to_string(),
+                    mode: EngineVideoMode::Windowed,
                     stretch_fill: false,
                 },
             })
@@ -130,7 +149,7 @@ pub fn main() {
     let mut script: String = String::from("");
     let mut loaded_main_lua: bool = false;
 
-    let mut max_update_hz: f64 = 1.0 / 9999.0;
+    let mut max_update_hz: f64 = 1.0 / 144.0;
     let mut max_draw_hz: f64 = 1.0 / 144.0;
 
     let mut last_width: usize = DEFAULT_WIDTH as usize;
@@ -188,7 +207,6 @@ pub fn main() {
 
     let window = video_subsystem
         .window(TITLE, DEFAULT_WIDTH, DEFAULT_HEIGHT)
-        .fullscreen_desktop()
         .resizable()
         .position_centered()
         .build()
@@ -197,10 +215,10 @@ pub fn main() {
         
     let mut canvas = if hardware_accelerated { 
         println!("Hardware Canvas");
-        window.into_canvas().build().map_err(|e| e.to_string()).unwrap()
+        window.into_canvas().present_vsync().build().map_err(|e| e.to_string()).unwrap()
     } else {
         println!("Software Canvas");
-        window.into_canvas().software().build().map_err(|e| e.to_string()).unwrap()
+        window.into_canvas().software().present_vsync().build().map_err(|e| e.to_string()).unwrap()
     };
 
     let texture_creator = canvas.texture_creator();
@@ -227,6 +245,8 @@ pub fn main() {
         engine.lua_global.video_data.borrow_mut().stretch_fill = engine.video.stretch_fill;
         engine.lua_global.video_data.borrow_mut().mode = engine.video.mode;
 
+        engine.lua_global.controls.borrow_mut().update_mouse_boundries(DEFAULT_WIDTH as f64, DEFAULT_HEIGHT as f64);
+
         let mut game_maxfps_timer: f64 = 0.0;
         let mut draw_maxfps_timer: f64 = 0.0;
 
@@ -245,12 +265,20 @@ pub fn main() {
         // We need to monitor the real change in time between updates
         let mut last_update_time: f64 = 0.0;
 
+        let spr_cursor: Rasterizer = get_cursor_img();
+
         'gameloop: loop {
             if lua_error.is_some() { break 'gameloop; }
+
+            sdl_context.mouse().show_cursor(false);
+            //sdl_context.mouse().set_relative_mouse_mode(true);
+            
 
             engine.time.update();
             game_maxfps_timer -= engine.time.dt;
             draw_maxfps_timer -= engine.time.dt;
+
+
 
             for event in event_pump.poll_iter() {
                 match event {
@@ -273,58 +301,56 @@ pub fn main() {
                     screentex = texture_creator.create_texture_streaming(PixelFormatEnum::RGBA32, rst_width as u32, rst_height as u32)
                     .map_err(|e| e.to_string()).unwrap();
 
+                    let _ = canvas.window_mut().set_size(rst_width as u32, rst_height as u32);
+
                     if !engine.video.stretch_fill {
                         let _ = canvas.set_logical_size(rst_width as u32, rst_height as u32);
                         let _ = canvas.set_integer_scale(true);
                         let _ = canvas.window_mut().set_minimum_size(rst_width as u32, rst_height as u32);
                     }
 
-                    let _ = canvas.window_mut().set_size(rst_width as u32, rst_height as u32);
+                    engine.lua_global.controls.borrow_mut().update_mouse_boundries(rst_width as f64, rst_height as f64);
+                    
                     last_width = rst_width;
                     last_height = rst_height;
                 }
-
-                let _ = canvas.window_mut().set_title(engine.lua_global.window_title.as_str());
 
                 // Check for window mode
                 let lua_video_mode: EngineVideoMode = engine.lua_global.video_data.borrow_mut().mode;
                 if engine.video.mode != lua_video_mode {
                     match lua_video_mode {
                         EngineVideoMode::Fullscreen => {
-                            let _ = canvas.window_mut().set_fullscreen(FullscreenType::True);
+                            let _ = canvas.window_mut().set_bordered(false);
+                            let _ = canvas.window_mut().maximize();
+                            let _ = canvas.window_mut().set_fullscreen(FullscreenType::Desktop);
                         },
                         EngineVideoMode::Windowed => {
+                            let _ = canvas.window_mut().set_bordered(true);
+                            let _ = canvas.window_mut().set_size(last_width as u32, last_height as u32);
                             let _ = canvas.window_mut().set_fullscreen(FullscreenType::Off);
                         },
                         EngineVideoMode::Exclusive => {
-                            let _ = canvas.window_mut().set_fullscreen(FullscreenType::Desktop);
+                            let _ = canvas.window_mut().set_fullscreen(FullscreenType::True);
                         },
                     }
                 }
 
                 engine.video.mode = lua_video_mode;
-            }
 
+                // Check for window title
+                if engine.video.window_title != engine.lua_global.video_data.borrow().window_title {
+                    let _ = canvas.window_mut().set_title(engine.lua_global.video_data.borrow().window_title.as_str());
+                }
+            }
 
             if game_maxfps_timer <= 0.0 {
                 let update_dt = engine.time.realtime - last_update_time;
                 last_update_time = engine.time.realtime;
 
                 // == GAME ==
-
-                // Update controls
-                // We need the current display resolution and fullscreen info to put the cursor in the correct position
-                // Or just force everyone to use fullscreen instead :p
-                {
-                    let screen_width: usize = canvas.window().size().0 as usize;
-                    let screen_height: usize = canvas.window().size().1 as usize;
-                    let video_width: usize = engine.video.screen_resolution.0;
-                    let video_height: usize = engine.video.screen_resolution.1;
-                    let fullscreen: bool = engine.video.mode == EngineVideoMode::Fullscreen || engine.video.mode == EngineVideoMode::Exclusive;
-                    let sdl_x: f64 = event_pump.mouse_state().x() as f64;
-                    let sdl_y: f64 = event_pump.mouse_state().y() as f64;
-                    engine.lua_global.controls.borrow_mut().update_controls(screen_width, screen_height, video_width, video_height, fullscreen, sdl_x, sdl_y);
-                }
+                
+                engine.lua_global.controls.borrow_mut().update_controls(event_pump.mouse_state(), event_pump.keyboard_state());
+                //sdl_context.mouse().warp_mouse_in_window(canvas.window(), last_width as i32 / 2, last_height as i32 / 2);
                 
                 // Run Lua Update
                 let update_error = engine.lua_global.update(update_dt);
@@ -343,7 +369,27 @@ pub fn main() {
                 if draw_error.is_err() {
                     lua_error = Some(format!("Runtime Error: Lua: {}", draw_error.err().unwrap()));
                 }
-                //engine.lua_global.rasterizer.borrow_mut().draw_debug_view();
+
+                use crate::rasterizer::DrawMode;
+/*                 if engine.lua_global.controls.borrow().mouse_active {
+                    let mut rst = engine.lua_global.rasterizer.borrow_mut();
+
+                    rst.set_draw_mode(DrawMode::Alpha);
+                    rst.set_tint(Color::black());
+                    rst.set_opacity(127);
+                    rst.pimg(&spr_cursor,
+                        engine.lua_global.controls.borrow().mouse.x as i64 + 1,
+                        engine.lua_global.controls.borrow().mouse.y as i64 + 1
+                    );
+
+                    rst.set_draw_mode(DrawMode::Opaque);
+                    rst.set_tint(Color::white());
+                    rst.set_opacity(255);
+                    rst.pimg(&spr_cursor,
+                        engine.lua_global.controls.borrow().mouse.x as i64,
+                        engine.lua_global.controls.borrow().mouse.y as i64
+                    );
+                } */
 
                 // Present to screen
                 let _ = screentex.update(None, &engine.lua_global.rasterizer.borrow().rasterizer.color, (engine.lua_global.rasterizer.borrow().rasterizer.width * 4) as usize);
@@ -366,7 +412,7 @@ pub fn main() {
         .map_err(|e| e.to_string()).unwrap();
 
 
-        use crate::color::Color;
+        use crate::color::*;
 
         let error_bg_img: Rasterizer = error_data::get_error_bg();
         //let error_text_img: Rasterizer = error_data::raster_text_to_image(512, 512, error_text);

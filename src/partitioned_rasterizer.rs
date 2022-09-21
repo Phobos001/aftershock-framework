@@ -302,6 +302,50 @@ impl PartitionedRasterizer {
 		
 	}
 
+	pub fn pimgrect(&mut self, image: &Rasterizer, x: i64, y: i64, ix: i64, iy: i64, iw: i64, ih: i64) {
+
+		let width = image.width;
+		let height = image.height;
+		// Approximate area, can be bigger depending on rotation
+		let total_area = (width as i64) * (height as i64);
+
+		// Run in parallel
+		if total_area >= self.threshold as i64 {
+			scope(|s| {
+				let mut join_handles: Vec<ScopedJoinHandle<&mut Rasterizer>> = Vec::new();
+			
+				for part in &mut self.partitions {
+
+					let rx = x - part.offset_x as i64;
+					let ry = y - part.offset_y as i64;
+
+
+					let handle = s.spawn(move || {
+	
+						part.pimgrect(image, rx, ry, ix, iy, iw, ih);
+	
+						part
+					});
+					join_handles.push(handle);
+				}
+	
+				for handle in join_handles {
+					let part_return = handle.join();
+					if part_return.is_ok() {
+						let part = part_return.unwrap();
+						self.rasterizer.blit(&part, part.offset_x as i64, part.offset_y as i64);
+					} else {
+						println!("ERROR - THREAD PANIC: Partition failed in pimg function!")
+					}
+				}
+			})
+			
+		} else {
+			self.rasterizer.pimg(&image, x, y);
+		}
+		
+	}
+
 	pub fn pimgmtx(&mut self, image: &Rasterizer, x: f64, y: f64, rotation: f64, scale_x: f64, scale_y: f64, offset_x: f64, offset_y: f64) {
 
 		let width = image.width;
