@@ -1,7 +1,3 @@
-use std::rc::Rc;
-use std::cell::RefCell;
-
-use crate::VideoData;
 use crate::EngineVideoMode;
 
 use mlua::prelude::*;
@@ -9,6 +5,7 @@ use mlua::prelude::*;
 use crate::api_shareables::*;
 
 pub fn register_display_api(rasterizer: SharedRasterizer, video_data: SharedVideoData, lua: &Lua) {
+    println!("Registering API: Display");
 
     let vid = video_data.clone();
     let fn_display_set_window_title = lua.create_function(move |_, name: String| {

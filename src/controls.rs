@@ -1,4 +1,3 @@
-use device_query::{DeviceQuery, DeviceState, MouseState};
 use sdl2::keyboard::Keycode;
 use crate::vector2::*;
 
@@ -24,8 +23,6 @@ pub struct ControlData {
     pub controls: u128,
     pub controls_last: u128,
 
-    pub device_state: DeviceState,
-
     pub mouse: Vector2,
     pub mouse_delta: Vector2,
     pub mouse_boundries: Vector2,
@@ -43,8 +40,6 @@ impl ControlData {
             binds: Vec::new(),
             controls: 0,
             controls_last: 0,
-
-            device_state: DeviceState::new(),
 
             mouse: Vector2::ZERO,
             mouse_delta: Vector2::ZERO,
@@ -88,14 +83,15 @@ impl ControlData {
     }
 
     pub fn update_controls(&mut self, mouse_state: sdl2::mouse::MouseState, keyboard_state: sdl2::keyboard::KeyboardState) {
-        let dq_mouse_state: MouseState = self.device_state.get_mouse();
-
         let new_mouse_position_dx = mouse_state.x() as f64 - self.mouse.x;
         let new_mouse_position_dy = mouse_state.y() as f64 - self.mouse.y;
         
         self.mouse += Vector2::new(new_mouse_position_dx, new_mouse_position_dy) * 0.5;
         self.mouse.x = self.mouse.x.clamp(0.0, self.mouse_boundries.x);
         self.mouse.y = self.mouse.y.clamp(0.0, self.mouse_boundries.y);
+
+        self.mouse.x = mouse_state.x() as f64;
+        self.mouse.y = mouse_state.y() as f64;
         
 
 

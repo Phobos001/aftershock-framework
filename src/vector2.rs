@@ -311,8 +311,8 @@ impl std::ops::MulAssign for Vector2 {
 impl std::ops::RemAssign for Vector2 {
 	fn rem_assign(&mut self, rhs: Vector2) {
 		*self = Self {
-			x: modf(self.x, rhs.x),
-			y: modf(self.y, rhs.y),
+			x: self.x.rem_euclid(rhs.x),
+			y: self.y.rem_euclid(rhs.y),
 		}
 	}
 }

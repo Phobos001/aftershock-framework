@@ -131,11 +131,7 @@ impl Font {
 	}
 }
 
-impl LuaUserData for Font {
-	fn add_methods<'lua, M: LuaUserDataMethods<'lua, Self>>(methods: &mut M) {
-		
-	}
-}
+impl LuaUserData for Font {}
 
 #[derive(Copy, Clone, Debug)]
 pub struct FontGlyph {

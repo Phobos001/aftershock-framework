@@ -2,6 +2,7 @@ use crate::{api_shareables::*, controls::ControlData};
 use mlua::prelude::*;
 
 pub fn register_input_api(control_data: SharedControlData, lua: &Lua) {
+    println!("Registering API: Input KB/M");
 
     let input = control_data.clone();
     let fn_mouse_x = lua.create_function( move |_, ()| {

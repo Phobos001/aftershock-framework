@@ -1,6 +1,5 @@
 use rayon::prelude::*;
 
-use crate::color;
 use crate::color::*;
 use crate::partitioned_rasterizer::PartitionedRasterizer;
 use crate::vector2::*;
@@ -240,6 +239,7 @@ pub struct Rasterizer {
     pub camera_position: Vector2,
     pub camera_rotation: f64,
     pub camera_scale: Vector2,
+    pub camera_matrix: Matrix3,
 
     pub draw_mode: DrawMode,
     pub tint: Color,
@@ -273,6 +273,7 @@ impl Rasterizer {
             camera_position: Vector2::ZERO,
             camera_rotation: 0.0,
             camera_scale: Vector2::ONE,
+            camera_matrix: Matrix3::identity(),
 
             draw_mode: DrawMode::Opaque,
             tint: Color::white(),
@@ -304,6 +305,7 @@ impl Rasterizer {
                     camera_position: Vector2::ZERO,
                     camera_rotation: 0.0,
                     camera_scale: Vector2::ONE,
+                    camera_matrix: Matrix3::identity(),
 
                     draw_mode: DrawMode::Opaque,
                     tint: Color::white(),
@@ -454,6 +456,22 @@ impl Rasterizer {
         self.render_next_frame_as_animation = false;
     }
 
+    pub fn update_camera(&mut self) {
+        // Camera is usually in the top left corner so we need to change the zoom scaling so it fits in the middle of the screen
+        let camera_offset: Vector2 = Vector2::new(
+            -lerpf(0.0, self.width as f64, 0.5),
+            -lerpf(0.0, self.height as f64, 0.5),
+        );
+
+        let camera_mtx_o = Matrix3::translated(camera_offset);
+        let camera_mtx_r = Matrix3::rotated(self.camera_rotation);
+        let camera_mtx_p = Matrix3::translated(-self.camera_position + Vector2::new(self.width as f64 / 2.0, self.height as f64 / 2.0));
+        let camera_mtx_s = Matrix3::scaled(self.camera_scale);
+
+        // Combine matricies using matrix multiplication
+        self.camera_matrix = camera_mtx_p * camera_mtx_r * camera_mtx_s * camera_mtx_o;
+    }
+
     /// Draws a pixel to the color buffer, using the Rasterizers set DrawMode. DrawMode defaults to Opaque.
     pub fn pset(&mut self, x: i64, y: i64, color: Color) {
         self.drawn_pixels_since_clear += 1;
@@ -538,7 +556,7 @@ impl Rasterizer {
         /// Draws a rectangle onto the screen. Can either be filled or outlined.
     pub fn prectangle(&mut self, filled: bool, x: i64, y: i64, w: i64, h: i64, color: Color) {
         let x0 = i64::clamp(x, 0, self.width as i64);
-        let x1 = i64::clamp(x + (w-1), 0, self.width as i64);
+        let x1 = i64::clamp(x + w, 0, self.width as i64);
         let y0 = i64::clamp(y, 0, self.height as i64);
         let y1 = i64::clamp(y + h, 0, self.height as i64);
     
@@ -565,9 +583,9 @@ impl Rasterizer {
     pub fn pcircle(&mut self, filled: bool, xc: i64, yc: i64, r: i64, color: Color) { 
 
         let minx = i64::clamp(xc - r, 0, self.width  as i64);
-        let maxx = i64::clamp(xc + r, 0, self.width  as i64);
+        let maxx = i64::clamp((xc + r) + 1, 0, self.width  as i64);
         let miny = i64::clamp(yc - r, 0, self.height as i64);
-        let maxy = i64::clamp(yc + r, 0, self.height as i64);
+        let maxy = i64::clamp((yc + r)+1, 0, self.height as i64);
 
         if filled {
             for py in miny..maxy {
@@ -615,11 +633,6 @@ impl Rasterizer {
 
     /// Draws an image directly to the screen.
     pub fn pimg(&mut self, image: &Rasterizer, x: i64, y: i64) {
-        let x0 = i64::clamp(x, 0, self.width as i64);
-        let x1 = i64::clamp(x + (image.width as i64), 0, self.width as i64);
-        let y0 = i64::clamp(y, 0, self.height as i64);
-        let y1 = i64::clamp(y + (image.height as i64), 0, self.height as i64);
-
         for ly in 0..image.height as i64 {
             for lx in 0..image.width as i64 {
                 let pc = image.pget(lx, ly);
@@ -655,12 +668,12 @@ impl Rasterizer {
     pub fn pimgmtx(&mut self, image: &Rasterizer, position_x: f64, position_y: f64, rotation: f64, scale_x: f64, scale_y: f64, offset_x: f64, offset_y: f64) {
 
         // Early out if the image is going to be too small to draw
-        //let area_x = image.width as f64 * scale_x;
-        //let area_y = image.height as f64 * scale_y;
+        let area_x = image.width as f64 * scale_x;
+        let area_y = image.height as f64 * scale_y;
 
-        //if area_x * area_y < 1.0 {
-        //    return;
-        //}
+        if area_x * area_y < 1.0 {
+            return;
+        }
 
         let offset_x = -lerpf(0.0, image.width as f64, offset_x);
         let offset_y = -lerpf(0.0, image.height as f64, offset_y);
@@ -668,22 +681,7 @@ impl Rasterizer {
         let position: Vector2 = Vector2::new(position_x, position_y);
         let offset: Vector2 = Vector2::new(offset_x, offset_y);
         let scale: Vector2 = Vector2::new(scale_x, scale_y);
-
-        // Get Rasterizer Camera Matrix Setup
-
-        // Camera is usually in the top left corner so we need to change the zoom scaling so it fits in the middle of the screen
-        let camera_offset: Vector2 = Vector2::new(
-            -lerpf(0.0, self.width as f64, 0.5),
-            -lerpf(0.0, self.height as f64, 0.5),
-        );
-
-        let camera_mtx_o = Matrix3::translated(camera_offset);
-        let camera_mtx_r = Matrix3::rotated(self.camera_rotation);
-        let camera_mtx_p = Matrix3::translated(-self.camera_position + Vector2::new(self.width as f64 / 2.0, self.height as f64 / 2.0));
-        let camera_mtx_s = Matrix3::scaled(self.camera_scale);
-
-        // Combine matricies using matrix multiplication
-        let camera_cmtx = camera_mtx_p * camera_mtx_r * camera_mtx_s * camera_mtx_o;
+        
 
         // Get sprite matrix setup
         let mtx_o = Matrix3::translated(offset);
@@ -691,8 +689,10 @@ impl Rasterizer {
         let mtx_p = Matrix3::translated(position);
         let mtx_s = Matrix3::scaled(scale);
 
+        let smtx = mtx_p * mtx_r * mtx_s * mtx_o;
+
         // Combine camera matrix with sprite matrix
-        let cmtx = camera_cmtx * mtx_p * mtx_r * mtx_s * mtx_o;
+        let cmtx = self.camera_matrix * smtx;
 
         // We have to get the rotated bounding box of the rotated sprite in order to draw it correctly without blank pixels
         let start_center: Vector2 = cmtx.forward(Vector2::ZERO);
@@ -759,8 +759,6 @@ impl Rasterizer {
         let mut jumpy: i64 = 0;
         let chars: Vec<char> = text.chars().collect();
 
-        let mut line_length: u32 = 0;
-
         for i in 0..chars.len() {
             
             if chars[i] == '\n' { jumpy += font.glyph_height as i64 + newline_space; jumpx = 0; continue; }
@@ -778,8 +776,7 @@ impl Rasterizer {
                     jumpx += font.glyph_width as i64 + font.glyph_spacing as i64;
                 }
             }
-            line_length += 1;
-            if wrap_width.is_some() && (jumpx as u32) > wrap_width.unwrap() { jumpy += font.glyph_height as i64 + newline_space; jumpx = 0; line_length = 0; }
+            if wrap_width.is_some() && (jumpx as u32) > wrap_width.unwrap() { jumpy += font.glyph_height as i64 + newline_space; jumpx = 0; }
         }
     }
 

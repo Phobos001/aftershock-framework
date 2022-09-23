@@ -4,8 +4,6 @@ use crate::color::*;
 use std::thread::*;
 
 use crate::vector2::*;
-use crate::matrix3::*;
-use crate::math::*;
 
 // If a bounding area in pixels is greater than this number, run in parallel instead
 // Otherwise the extra setup is not worth the effort
@@ -157,6 +155,13 @@ impl PartitionedRasterizer {
 		self.rasterizer.camera_scale = Vector2::new(x, y);
 		for part in &mut self.partitions {
 			part.camera_scale = Vector2::new(x, y);
+		}
+	}
+
+	pub fn update_camera(&mut self) {
+		self.rasterizer.update_camera();
+		for part in &mut self.partitions {
+			part.update_camera();
 		}
 	}
 
@@ -356,14 +361,6 @@ impl PartitionedRasterizer {
 		// Run in parallel
 		if total_area >= self.threshold as i64 as f64 {
 			scope(|s| {
-				let bb_ox = -lerpf(0.0, image.width as f64, offset_x);
-				let bb_oy = -lerpf(0.0, image.height as f64, offset_y);
-
-				let (rsx, rsy, rex, rey) = PartitionedRasterizer::get_pimgmtx_bounding_box(
-					width as f64, height as f64,
-					x, y, rotation,
-					scale_x, scale_y,
-					bb_ox, bb_oy);
 
 				let mut join_handles: Vec<ScopedJoinHandle<&mut Rasterizer>> = Vec::new();
 
@@ -444,53 +441,6 @@ impl PartitionedRasterizer {
 			PartitionScheme::Split5x5 => { self.partition_split_5x5(); },
 			PartitionScheme::Split8x8 => { self.partition_split_8x8(); },
 		}
-	}
-
-	fn get_pimgmtx_bounding_box(width: f64, height: f64, x: f64, y: f64, r: f64, sx: f64, sy: f64, ox: f64, oy: f64) -> (f64, f64, f64, f64) {
-		let offset_x = -lerpf(0.0, width, ox);
-        let offset_y = -lerpf(0.0, height, oy);
-
-        let position: Vector2 = Vector2::new(x, y);
-        let offset: Vector2 = Vector2::new(ox, oy);
-        let scale: Vector2 = Vector2::new(sx, sy);
-
-        let mtx_o = Matrix3::translated(offset);
-        let mtx_r = Matrix3::rotated(r);
-        let mtx_p = Matrix3::translated(position);
-        let mtx_s = Matrix3::scaled(scale);
-
-        let cmtx = mtx_p * mtx_r * mtx_s * mtx_o;
-
-        // We have to get the rotated bounding box of the rotated sprite in order to draw it correctly without blank pixels
-        let start_center: Vector2 = cmtx.forward(Vector2::ZERO);
-        let (mut sx, mut sy, mut ex, mut ey) = (start_center.x, start_center.y, start_center.x, start_center.y);
-
-        // Top-Left Corner
-        let p1: Vector2 = cmtx.forward(Vector2::ZERO);
-        sx = f64::min(sx, p1.x); sy = f64::min(sy, p1.y);
-        ex = f64::max(ex, p1.x); ey = f64::max(ey, p1.y);
-
-        // Bottom-Right Corner
-        let p2: Vector2 = cmtx.forward(Vector2::new(width as f64, height as f64));
-        sx = f64::min(sx, p2.x); sy = f64::min(sy, p2.y);
-        ex = f64::max(ex, p2.x); ey = f64::max(ey, p2.y);
-
-        // Bottom-Left Corner
-        let p3: Vector2 = cmtx.forward(Vector2::new(0.0, height as f64));
-        sx = f64::min(sx, p3.x); sy = f64::min(sy, p3.y);
-        ex = f64::max(ex, p3.x); ey = f64::max(ey, p3.y);
-
-        // Top-Right Corner
-        let p4: Vector2 = cmtx.forward(Vector2::new(width as f64, 0.0));
-        sx = f64::min(sx, p4.x); sy = f64::min(sy, p4.y);
-        ex = f64::max(ex, p4.x); ey = f64::max(ey, p4.y);
-
-		let rsx = sx + 1.0;
-        let rsy = sy + 1.0;
-        let rex = ex + 1.0;
-        let rey = ey + 1.0;
-
-		(rsx, rsy, rex, rey)
 	}
 
 	pub fn draw_debug_view(&mut self) {

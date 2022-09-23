@@ -1,3 +1,18 @@
+// Aftershock Framework snippets to improve brain health for lua programmers
+// You are free to copy, modify, and share this text for use in different editors.
+// I will try to keep it as compatible as possible.
+
+// Flags for different functions
+//
+// -- Parallel --
+//
+// If a draw request has enough work, the framework will use a partitioned rasterizer to draw it in multiple threads.
+// Running simple draws with parallel effort is usually much slower.
+//
+// -- Camera --
+// 
+// Draw functions are affected by the Camera settings of the rasterizer.
+// Camera matricies are updated manually using update_camera()
 {
 
 	// Display API
@@ -54,19 +69,19 @@
 	"Blit": {
 		"prefix": ["blit"],
 		"body": ["blit($1name, $2x, $3y)$0"],
-		"description": "Copies image memory onto the screen buffer directly, if it fits inside and it exists."
+		"description": "Copies image memory onto the screen buffer directly, if it fits inside and it exists. Draws nothing if out of bounds."
 	},
 	
 	"Pixel Set": {
 	  "prefix": ["pset"],
 	  "body": ["pset($1image_name, $2x_position, $3y_position)$0"],
-	  "description": "Draw a pixel to the screen. Will wrap around if not clamped to the screen boundries."
+	  "description": "Draw a pixel to the screen. Draws nothing if out of bounds."
 	},
 
 	"Pixel Get": {
 		"prefix": ["pget"],
 		"body": ["pget($1image_name, $2x_position, $3y_position)$0"],
-		"description": "Collect a pixel from the screen. Does not wrap."
+		"description": "Collect a pixel from the screen. Returns Color::CLEAR if out of bounds."
 	},
 
 	"Pixel Line": {
@@ -105,16 +120,16 @@
 		"description": "[Parallel] Draws an image from memory at the X and Y coordinates provided, if it exists."
 	},
 
-	"Pixel Image": {
+	"Pixel Image Rect/Region": {
 		"prefix": ["pimgrect"],
 		"body": ["pimgrect($1name, $2x, $3y, $4image_x, $5image_y, $6image_width, $7image_height)$0"],
-		"description": "[Parallel] Draws an image from memory at the X and Y coordinates provided, if it exists."
+		"description": "[Parallel] Draws a region of an image from memory at the X and Y coordinates provided, if it exists."
 	},
 
 	"Pixel Image Matrix": {
 		"prefix": ["pimgmtx"],
 		"body": ["pimgmtx($1name, $2x, $3y, $4rotation, $5scale_x, $6scale_y, $7offset_x, $8offset_y)$0"],
-		"description": "[Parallel] Draws a transformed image onto the screen, along with set camera transformations, if it exists."
+		"description": "[Parallel | Camera] Draws a transformed image onto the screen, along with set camera transformations, if it exists."
 	},
 
 	// Image API
@@ -200,7 +215,30 @@
 		"description": "Returns true once if the bound key has been released this frame."
 	},
 
-	// Physics API
+	"Is Mouse Button Down": {
+		"prefix": ["is_mouse_button_down"],
+		"body": ["is_mouse_button_down($1button)$0"],
+		"description": "Returns true every frame if the requested mouse button is being held."
+	},
+
+	"Is Mouse Button Pressed": {
+		"prefix": ["is_mouse_button_pressed"],
+		"body": ["is_mouse_button_pressed($1button)$0"],
+		"description": "Returns true once if the requested mouse button has been released this frame. Avalible buttons are: 0: Left, 1: Right, 2: Middle, 3: X1, 4: X2"
+	},
+
+	"Is Mouse Button Released": {
+		"prefix": ["is_mouse_button_released"],
+		"body": ["is_mouse_button_released($1button)$0"],
+		"description": "Returns true once if the requested mouse button has been released this frame."
+	},
+
+	// Profiling API
+	"Timestamp": {
+		"prefix": ["timestamp"],
+		"body": ["timestamp()$0"],
+		"description": "Returns the current system time in seconds + nanoseconds. Best for quickly profiling how long functions take to run (time_after - time_before)."
+	},
 
 
 }

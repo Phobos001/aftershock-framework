@@ -64,7 +64,7 @@ impl RapierWorld2D {
 		}
 	}
 
-	pub fn update(&mut self, delta: f64) {
+	pub fn step(&mut self) {
 		self.physics_pipeline.step(
 			&self.gravity,
 			&self.integration_parameters,
@@ -81,29 +81,42 @@ impl RapierWorld2D {
 		);
 	}
 
-	pub fn add_static_rect(&mut self, x: f64, y: f64, width: f64, height: f64) {
-		let collider = ColliderBuilder::cuboid(width / 2.0, height / 2.0).translation(vector![x, y]).build();
-		let _ = self.collider_set.insert(collider);
-		
+	pub fn set_gravity(&mut self, dx: f64, dy: f64) {
+		self.gravity.x = dx;
+		self.gravity.y = dy;
 	}
 
-	pub fn add_dynamic_rect(&mut self,x: f64, y: f64, width: f64, height: f64) {
-		let collider = ColliderBuilder::cuboid(width / 2.0, height / 2.0).build();
-		let rigidbody = self.rigid_body_set.insert(RigidBodyBuilder::dynamic().translation(vector![x, y]).build());
-		let _ = self.collider_set.insert_with_parent(collider, rigidbody, &mut self.rigid_body_set);
-
-	}
-
-	pub fn add_static_rect_handle(&mut self, name: String, x: f64, y: f64, width: f64, height: f64) {
+	pub fn add_static_rect(&mut self, name: String, x: f64, y: f64, width: f64, height: f64) {
 		let collider = ColliderBuilder::cuboid(width / 2.0, height / 2.0).translation(vector![x, y]).build();
 		let handle = self.collider_set.insert(collider);
 		self.handles_collider.insert(name, handle);
 	}
 
-	pub fn add_dynamic_rect_handle(&mut self, name: String, x: f64, y: f64, width: f64, height: f64) {
+	pub fn add_dynamic_rect(&mut self, name: String, x: f64, y: f64, width: f64, height: f64) {
 		let collider = ColliderBuilder::cuboid(width / 2.0, height / 2.0).build();
 		let rigidbody = self.rigid_body_set.insert(RigidBodyBuilder::dynamic().translation(vector![x, y]).build());
 		let handle = self.collider_set.insert_with_parent(collider, rigidbody, &mut self.rigid_body_set);
 		self.handles_collider.insert(name, handle);
+	}
+
+	pub fn add_kinematic_body_rect(&mut self, name: String, x: f64, y: f64, width: f64, height: f64) {
+		let collider = ColliderBuilder::cuboid(width / 2.0, height / 2.0).build();
+		let rigidbody = self.rigid_body_set.insert(RigidBodyBuilder::kinematic_velocity_based().translation(vector![x, y]).build());
+		let handle = self.collider_set.insert_with_parent(collider, rigidbody, &mut self.rigid_body_set);
+		self.handles_collider.insert(name, handle);
+	}
+
+	pub fn get_rigidbody_position(&self, name: String) -> (f64, f64) {
+		let get_rb = self.handles_rigidbody.get(&name);
+		if get_rb.is_some() {
+			let result = get_rb.unwrap();
+			let rb = self.rigid_body_set.get(*result.value()).unwrap();
+			let (x, y) = (rb.translation().x, rb.translation().y);
+
+			(x, y)
+		} else {
+			println!("WARNING: Rigidbody {} not found!", name);
+			(0.0, 0.0)
+		}
 	}
 }

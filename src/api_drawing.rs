@@ -4,11 +4,17 @@ use crate::font::*;
 
 use mlua::prelude::*;
 
-use std::sync::Arc;
-
 use crate::api_shareables::*;
 
 pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasterizer, lua: &Lua) {
+    println!("Registering API: Drawing");
+
+    let rst = rasterizer.clone();
+    let fn_update_camera = lua.create_function(move |_, ()| {
+        rst.borrow_mut().update_camera();
+        Ok(())
+    } ).unwrap();
+    let _ = lua.globals().set("update_camera", fn_update_camera);
 
     // Set Core Limit //
     let rst = rasterizer.clone();
@@ -193,7 +199,7 @@ pub fn register_draw_api(assets_images: SharedImages, rasterizer: SharedRasteriz
 
     // pbeizer //
     let rst = rasterizer.clone();
-    let fn_pbeizer = lua.create_function(move |_, (thickness, x0, y0, x1, y1, mx, my, color): (i64, i64, i64, i64, i64, i64, i64, Color)| {
+    let fn_pbeizer = lua.create_function(move |_, (x0, y0, x1, y1, mx, my, color): (i64, i64, i64, i64, i64, i64, Color)| {
         rst.borrow_mut().rasterizer.pbeizer(x0, y0, x1, y1, mx, my, color);
         Ok(())
     } ).unwrap();

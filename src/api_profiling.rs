@@ -3,6 +3,8 @@ use mlua::prelude::*;
 use std::time::{UNIX_EPOCH, SystemTime};
 
 pub fn register_profiling_api(lua: &Lua) {
+    println!("Registering API: Profiling");
+    
     let fn_timestamp = lua.create_function(move |_, ()| {
         let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
         Ok((now.as_secs() as f64) + (now.subsec_nanos() as f64 * 0.000000001))

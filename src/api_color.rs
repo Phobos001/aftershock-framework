@@ -2,6 +2,7 @@ use crate::color::*;
 use mlua::prelude::*;
 
 pub fn register_color(lua: &Lua) {
+    println!("Registering API: Color");
 
     // RGB //
     let rgb_constructor = lua.create_function(|_, (r, g, b): (f64, f64, f64)| {

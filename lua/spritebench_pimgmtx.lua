@@ -90,6 +90,7 @@ function _draw()
 
 	set_camera_scale(camera_scale, camera_scale)
 	set_camera_rotation(camera_rotation)
+	update_camera()
 	
 	set_draw_mode_alpha()
 	clear_color(rgb(32, 0, 32, 255))

@@ -4,6 +4,7 @@ use soloud::prelude::*;
 use crate::api_shareables::*;
 
 pub fn register_audio_api(audio: SharedAudio, audio_handles: SharedAudioHandle, assets_sfx: SharedAudioWav, assets_mus: SharedAudioWavStream, lua: &Lua) {
+    println!("Registering API: Audio");
 
     // SFX //
     let sfxa = assets_sfx.clone();

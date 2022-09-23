@@ -1,6 +1,6 @@
 use rgb::ComponentBytes;
 
-use crate::{rasterizer::Rasterizer, color::Color};
+use crate::rasterizer::Rasterizer;
 
 pub fn get_error_bg() -> Rasterizer {
     let decode_result = lodepng::decode32(ERROR_BG);

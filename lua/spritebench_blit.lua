@@ -77,8 +77,6 @@ function _update(delta)
 
 	local time_after = timestamp()
 	update_time_ms = math.ceil((time_after - time_before) * 10000.0) / 10.0
-
-	
 end
 
 function _draw()

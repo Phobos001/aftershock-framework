@@ -15,7 +15,7 @@ mod rasterizer;
 mod partitioned_rasterizer;
 
 // Physics
-mod rapier2d_wrap;
+//mod rapier2d_wrap;
 
 // Lua API
 mod api_shareables;
@@ -31,22 +31,7 @@ mod api_profiling;
 
 mod error_data;
 
-const CURSOR_IMAGE: &[u8] = include_bytes!("cursor.png");
 
-fn get_cursor_img() -> Rasterizer {
-    use rgb::ComponentBytes;
-    let decode_result = lodepng::decode32(CURSOR_IMAGE);
-    if decode_result.is_ok() {
-        let img = decode_result.unwrap();
-        let mut r = Rasterizer::new(img.width, img.height);
-        r.color = img.buffer.as_bytes().to_vec();
-        r
-    } else {
-        panic!("ERROR - MAIN: CURSOR_IMAGE cannot be decoded!");
-    }
-}
-
-use crate::color::Color;
 use crate::font::Font;
 use crate::lua::LuaScript;
 use crate::rasterizer::Rasterizer;
@@ -104,7 +89,7 @@ impl TimeData {
 }
 
 impl AftershockEngine {
-    pub fn new(main_lua: String) -> Result<AftershockEngine, String> {
+    pub fn new(main_lua: String, hz_update: f64, hz_draw: f64) -> Result<AftershockEngine, String> {
 
         let screen_resolution: (usize, usize) =  (960, 540);
 
@@ -112,7 +97,7 @@ impl AftershockEngine {
             return Err("ERROR: Game not found! Use \"--game <game_path>.lua\" to load your game!\nFor example, \"--game src/main.lua\" or \"--game tools/level_editor.lua\"".to_string());
         }
 
-        let lua_global_result =  LuaScript::new(main_lua);
+        let lua_global_result =  LuaScript::new(main_lua, hz_update, hz_draw);
         if lua_global_result.is_ok() {
             Ok(AftershockEngine {
                 lua_global: lua_global_result.unwrap(),
@@ -188,8 +173,10 @@ pub fn main() {
     if !loaded_main_lua {
         lua_error = Some("ERROR - LUA: Game not found!".to_string());
     }
+
+    println!("\n===== {} {} =====\n",TITLE, VERSION);
     
-    let engine_result = AftershockEngine::new(script);
+    let engine_result = AftershockEngine::new(script, max_update_hz, max_draw_hz);
 
     let engine_option: Option<AftershockEngine> = if engine_result.is_ok() { 
         Some(engine_result.unwrap())
@@ -197,18 +184,19 @@ pub fn main() {
         lua_error = Some(engine_result.err().unwrap()); None
     };
 
-    println!("\n===== {} {} =====\n",TITLE, VERSION);
+
 
     // Init SDL and surface texture
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
 
-    println!("SDL Version: {}", sdl2::version::version());
+    println!("\nSDL Version: {}", sdl2::version::version());
 
     let window = video_subsystem
         .window(TITLE, DEFAULT_WIDTH, DEFAULT_HEIGHT)
         .resizable()
         .position_centered()
+        //.input_grabbed()
         .build()
         .unwrap();
 
@@ -250,7 +238,7 @@ pub fn main() {
         let mut game_maxfps_timer: f64 = 0.0;
         let mut draw_maxfps_timer: f64 = 0.0;
 
-        println!("Running Game Loop!");
+        
 
         let conf_error = engine.lua_global.conf();
         if conf_error.is_err() {
@@ -265,8 +253,7 @@ pub fn main() {
         // We need to monitor the real change in time between updates
         let mut last_update_time: f64 = 0.0;
 
-        let spr_cursor: Rasterizer = get_cursor_img();
-
+        println!("Now Running!");
         'gameloop: loop {
             if lua_error.is_some() { break 'gameloop; }
 
@@ -370,27 +357,6 @@ pub fn main() {
                     lua_error = Some(format!("Runtime Error: Lua: {}", draw_error.err().unwrap()));
                 }
 
-                use crate::rasterizer::DrawMode;
-/*                 if engine.lua_global.controls.borrow().mouse_active {
-                    let mut rst = engine.lua_global.rasterizer.borrow_mut();
-
-                    rst.set_draw_mode(DrawMode::Alpha);
-                    rst.set_tint(Color::black());
-                    rst.set_opacity(127);
-                    rst.pimg(&spr_cursor,
-                        engine.lua_global.controls.borrow().mouse.x as i64 + 1,
-                        engine.lua_global.controls.borrow().mouse.y as i64 + 1
-                    );
-
-                    rst.set_draw_mode(DrawMode::Opaque);
-                    rst.set_tint(Color::white());
-                    rst.set_opacity(255);
-                    rst.pimg(&spr_cursor,
-                        engine.lua_global.controls.borrow().mouse.x as i64,
-                        engine.lua_global.controls.borrow().mouse.y as i64
-                    );
-                } */
-
                 // Present to screen
                 let _ = screentex.update(None, &engine.lua_global.rasterizer.borrow().rasterizer.color, (engine.lua_global.rasterizer.borrow().rasterizer.width * 4) as usize);
                 let _ = canvas.copy(&screentex, None, None);
@@ -411,9 +377,6 @@ pub fn main() {
         screentex = texture_creator.create_texture_streaming(PixelFormatEnum::RGBA32, 512, 512)
         .map_err(|e| e.to_string()).unwrap();
 
-
-        use crate::color::*;
-
         let error_bg_img: Rasterizer = error_data::get_error_bg();
         //let error_text_img: Rasterizer = error_data::raster_text_to_image(512, 512, error_text);
         let tiny_font_img = error_data::get_tiny_font();
@@ -424,14 +387,16 @@ pub fn main() {
             glyph_width: 10,
             glyph_spacing: 0,
             glyphidx_sizes: Vec::new(),
-            glyphidx: "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!?/\\@#$%^&*()[]_-+=\"';:".to_string().chars().collect()
+            glyphidx: "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890!?/\\@#$%^&*()[]_-+=\"';:.".to_string().chars().collect()
         };
 
         let mut error_rast: Rasterizer = Rasterizer::new(512, 512);
         
-        for i in 0..error_rast.height {
-            error_rast.pline(0, i as i64, error_rast.width as i64, i as i64, Color::hsv((i as f64) * 0.1, 1.0, 0.35));
-        }
+        //for i in 0..error_rast.height {
+        //    error_rast.pline(0, i as i64, error_rast.width as i64, i as i64, Color::hsv((i as f64) * 0.1, 1.0, 0.35));
+        //}
+
+        error_rast.pimg(&error_bg_img, 0, 0);
 
         error_rast.pprint(&tiny_font, error_text, 8, 8, 5, Some(450));
 

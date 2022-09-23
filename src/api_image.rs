@@ -5,6 +5,7 @@ use mlua::prelude::*;
 use crate::api_shareables::*;
 
 pub fn register_image(assets_images: SharedImages, lua: &Lua) {
+    println!("Registering API: Images");
 
     let imgs = assets_images.clone();
     let fn_image_new = lua.create_function(move |_, (name, width, height): (String, f64, f64)| {
